@@ -1,3 +1,11 @@
+#####################################
+#                                   #
+# Functions used by parent_child2.R #
+#                                   #
+#####################################
+
+
+## Construct genealogies from the parent_child data file ("WaRecParent_adj.txt")
 get_genealogy_parent <- function() {
   genealogy.df <- data.frame(matrix(nrow=0, ncol=13))
   for (i in 1:length(original_parents)) {
@@ -5,7 +13,6 @@ get_genealogy_parent <- function() {
     cyclic <- cyclic1 <- cyclic2 <- cyclic3 <- cyclic4 <- cyclic5 <- FALSE
     genealogy_ii <- genealogy_iii <- genealogy_iv <- genealogy_v <- genealogy_vi <- genealogy_vii <- NULL
     print(i)
-    #parent <- parent_child$Parent[oldest[i]]
     child <- parent_child$Child[parent_child$Parent == parent]
     if (child[1] == parent) {
       genealogy.df <- rbind(genealogy.df, c(parent, rep(NA, ncol(genealogy.df) - 1)))
@@ -16,7 +23,6 @@ get_genealogy_parent <- function() {
       genealogy_i <- c(parent, ch)
       ind1 <- which(parent_child$Parent == ch)
       if (length(ind1) == 0) {
-        #genealogy_i <- c(parent, ch)
         genealogy.df <- rbind(genealogy.df, c(genealogy_i, rep(NA, ncol(genealogy.df) - length(genealogy_i))))
         next
       } 
@@ -25,7 +31,6 @@ get_genealogy_parent <- function() {
           j <- j + 1
           child <- parent_child$Child[ind1]
           genealogy_i <- c(genealogy_i, child)
-          #genealogy.df <- rbind(genealogy.df, genealogy_i)
           ind1 <- which(parent_child$Parent == child)
         } else {
           j1 <- j
@@ -33,7 +38,6 @@ get_genealogy_parent <- function() {
           for (k in 1:length(ind1)) {
             ind2 <- ind1[k]
             j <- j1
-            #print(paste0("k: ", k))
             while (length(ind2) > 0 & cyclic == FALSE) {
               if (length(ind2) == 1) {
                 j <- j + 1
@@ -47,7 +51,6 @@ get_genealogy_parent <- function() {
                 for (k1 in 1:length(ind2)) {
                   ind3 <- ind2[k1]
                   j <- j2
-                  #print(paste0("k1: ", k1))
                   while (length(ind3) > 0 & cyclic1 == FALSE) {
                     if (length(ind3) == 1) {
                       j <- j + 1
@@ -61,7 +64,6 @@ get_genealogy_parent <- function() {
                       for (k2 in 1:length(ind3)) {
                         ind4 <- ind3[k2]
                         j <- j3
-                        #print(paste0("k2: ", k2))
                         while (length(ind4) > 0 & cyclic2 == FALSE) {
                           if (length(ind4) == 1) {
                             j <- j + 1
@@ -75,7 +77,6 @@ get_genealogy_parent <- function() {
                             for (k3 in 1:length(ind4)) {
                               ind5 <- ind4[k3]
                               j <- j4
-                              #print(paste0("k3: ", k3))
                               while (length(ind5) > 0 & cyclic3 == FALSE) {
                                 if (length(ind5) == 1) {
                                   j <- j + 1
@@ -89,7 +90,6 @@ get_genealogy_parent <- function() {
                                   for (k4 in 1:length(ind5)) {
                                     ind6 <- ind5[k4]
                                     j <- j5
-                                    #print(paste0("k4: ", k4))
                                     while (length(ind6) > 0 & cyclic4 == FALSE) {
                                       if (length(ind6) == 1) {
                                         j <- j + 1
@@ -103,7 +103,6 @@ get_genealogy_parent <- function() {
                                         for (k5 in 1:length(ind6)) {
                                           ind7 <- ind6[k5]
                                           j <- j6
-                                          #print(paste0("k5: ", k5))
                                           while (length(ind7) > 0 & cyclic5 == FALSE) {
                                             j <- j + 1
                                             child <- parent_child$Child[ind7]
@@ -166,87 +165,12 @@ get_genealogy_parent <- function() {
   return(genealogy.df)
 }
 
-get_genealogy_child <- function() {
-  genealogy.df <- NULL
-  for (i in 1:L) {
-    cyclic = FALSE
-    print(i)
-    j <- 1
-    child <- parent_child$Child[youngest[i]]
-    parent <- parent_child$Parent[youngest[i]]
-    genealogy_i <- cbind(child, parent, gen=j)
-    genealogy.df <- rbind(genealogy.df, genealogy_i)
-    ind1 <- which(parent_child$Child == parent)
-    while (length(ind1) > 0) {
-      if (length(ind1) == 1) {
-        j <- j + 1
-        parent <- parent_child$Parent[ind1]
-        if (parent_child$Parent[ind1] == parent) {
-          ind1 <- character(0)
-        } else {
-          genealogy_i <- cbind(child, parent, gen=j)
-          ind1 <- which(parent_child$Child == parent)
-          genealogy.df <- rbind(genealogy.df, genealogy_i)
-        }
-      } else {
-        for (k in 1:length(ind1)) {
-          #print(k)
-          ind2 <- ind1[k]
-          j <- 1
-          while (length(ind2) > 0 & cyclic == FALSE) {
-            if (length(ind2) == 1) {
-              j <- j + 1
-              parent <- parent_child$Parent[ind2]
-              genealogy_i <- cbind(child, parent, gen=j)
-              genealogy.df <- rbind(genealogy.df, genealogy_i)
-              ind2 <- which(parent_child$Child == parent)
-              cyclic <- all(ind2 == ind1) & length(ind2) > 0
-            } else {
-              for (k1 in 1:length(ind2)) {
-                ind3 <- ind2[k1]
-                while (length(ind3) > 0) {
-                  if (length(ind3) == 1) {
-                    j <- j + 1
-                    parent <- parent_child$Parent[ind3]
-                    genealogy_i <- cbind(child, parent, gen=j)
-                    genealogy.df <- rbind(genealogy.df, genealogy_i)
-                    ind3 <- which(parent_child$Child == parent)
-                  } else {
-                    for (k2 in 1:length(ind3)) {
-                      ind4 <- ind3[k2]
-                      while (length(ind4) > 0) {
-                        j <- j + 1
-                        parent <- parent_child$Parent[ind4]
-                        genealogy_i <- cbind(child, parent, gen=j)
-                        genealogy.df <- rbind(genealogy.df, genealogy_i)
-                        ind4 <- which(parent_child$Child == parent)
-                      }
-                    }
-                    ind3 <- character(0) ## end while loop
-                  }
-                }
-              }
-              ind2 <- character(0) 
-            }
-          }
-        }
-        ind1 <- character(0)
-      }
-    }
-  }
-  genealogy.df <- data.frame(genealogy.df)
-  return(genealogy.df) 
-}
-
-
+## Find the youngest generation of water right
 find_youngest <- function(x) {
   cond1 <- phase[x,] |> as.character() |> strsplit(split="\\|") |> 
     lapply(function(y) length(grep("App", y, invert=TRUE)) > 0) |> unlist() & 
     !is.na(parent_genealogy[x,])
-  #cond1 <- unlist(lapply(strsplit(as.character(phase[x,]), split="\\|"), 
-  #  function (y) length(grep("App", y, invert=TRUE)) > 0)) & !is.na(parent_genealogy[x,])
   exclude_stage <- "Pending|Denied|Withdrawn|Rejected|Cancelled"
-  #cond2 <- intersect(which(status[x,] != "Inactive"), union(grep(exclude_stage, stage[x,], invert=TRUE), which(is.na(stage[x,]))))
   cond2 <- union(grep(exclude_stage, stage[x,], invert=TRUE), which(is.na(stage[x,])))
   cond3 <- intersect(which(cond1), cond2)
   cond4 <- intersect(grep("Partnership Water Banking|Drought|Seasonal Changes|Temporary Use", assignment[x,], invert=T), cond3)
@@ -258,16 +182,7 @@ find_youngest <- function(x) {
   }
   return(out)
 }
-
-find_youngest2 <- function(x) {
-  col_num <- which(status[x,] == "Active" & phase[x,] != "Claim")[1]
-  if (is.na(col_num)) {
-    out <- NA
-  } else {
-    out <- parent_genealogy[x,col_num]
-  }
-  return(out)
-}
+## Determine whether forfeiture occurred anywhere in the genealogy
 get_diminishment <- function(row_num) {
   sum_child1 <- which(parent_genealogy[row_num,"youngest"] != parent_genealogy[row_num, "Parent"]) |>
     intersect(y=grep("Seasonal Changes", assignment[row_num, "youngest"], invert=T)) |>
@@ -280,10 +195,7 @@ get_diminishment <- function(row_num) {
     intersect(y=which(unlist(lapply(strsplit(IA[row_num,"youngest"], split="\\|"), function(x) sum(as.numeric(gsub("NA", NA, x)), na.rm=T))) > 0))
   sum_child2 <- which(parent_genealogy[row_num,"youngest"] != parent_genealogy[row_num, "Parent"]) |>
     intersect(y=grep("Seasonal Changes", assignment[row_num, "youngest"], invert=T))
-  #Relinquished <- ifelse(length(grep("Relinq|Relinquishment", events[row_num,], ignore.case=T)) > 0 | 
-  #  length(grep("Relinq|Relinquishment", c(comments[row_num,], event_comment[row_num,]), ignore.case=T)) > 0, TRUE, FALSE)
   Relinquished <- ifelse(length(grep("Relinq|Relinquishment", c(events[row_num,]), ignore.case=T)) > 0, TRUE, FALSE)
-  #Relinquished <- ifelse(length(grep("OdessaRERvd", events[row_num,])) > 0, FALSE, Relinquished)
   LackOfDiligence <- ifelse(sum(LackDiligence(row_num)$Qa) < 0, TRUE, FALSE)
   Parent_phase <- strsplit(phase[row_num[1], "Parent"], split="\\|")[[1]]
   Parent_Qa <- strsplit(AnnualVol[row_num[1],"Parent"], split="\\|")[[1]] |> 
@@ -319,12 +231,6 @@ get_diminishment <- function(row_num) {
   TrustWater <- ifelse(length(grep("TW Acquisition|Partnership Water Banking|Trust Wtr Right", assignment[row_num,])) > 0, TRUE, FALSE)
   active_parent <- any(unlist(apply(status[row_num,-ncol(status)], 1, function(x) x[tail(which(x != "Inactive"), 1) - 1])) != "Inactive")
   ChangeOnPortion <- ifelse(length(grep("ChangePartOfWR", change_intent[row_num,])) > 0 & compare_Qa >= 0 & phase$Parent[row_num][1] != "Claim" & !is.na(Child_Qa) & !is.na(Parent_Qa) & active_parent == TRUE, TRUE, FALSE)
-  #ChangeOnPortion <- ifelse((length(grep("Reduced by|PORTION OF ORIGINAL|apportioned|for portion of|for portions|a portion of", 
-   # c(event_comment[row_num,]), ignore.case=T)) > 0 | 
-  #  length(grep("Donation.*portion|TW.*portion|remaining portion", event_comment[row_num,], ignore.case=T)) > 0 |
-  #  (length(grep("partial", event_comment[row_num,], ignore.case=T)) > 0 & TrustWater == TRUE)) & 
-  #  (status$Parent[row_num][1] != "Inactive" | (active_parent == TRUE & TrustWater == TRUE)) & 
-  #  phase$Parent[row_num][1] != "Claim", TRUE, FALSE)
   ChangeOnPortion <- ifelse(TrustWater == TRUE & ChangeOnPortion == FALSE & 
     (((status$Parent[row_num][1] != "Inactive" | active_parent == TRUE) & phase$Parent[row_num][1] != "Claim") | (length(grep("Yakima Adjud", assignment[row_num,])) > 0 & active_Yakima2 == TRUE)) & 
     length(grep("Temp donation, full|Temp Donation \\(Full\\)", event_comment[row_num,], ignore.case=T)) == 0 &
@@ -347,11 +253,6 @@ get_diminishment <- function(row_num) {
       IsDiminished <- ifelse(Relinquished == TRUE | LackOfDiligence == TRUE | (round(Parent_Qi, 2) > round(Child_Qi, 2) & ChangeOnPortion == FALSE), TRUE, FALSE)
     }
   } else {
-    #IsDiminished <- ifelse(LackOfDiligence == TRUE | Relinquished == TRUE | 
-    #  length(grep("partial relinquishment", relinquishment$comments[which(relinquishment$Parent == parent_genealogy$Parent[row_num][1])])) > 0 |
-    #  ChangeOnPortion == FALSE & Child_Qa > 0 & round(Parent_Qa, 0) > round(Child_Qa) &
-    #  (compare_Qa < 0 | compare_Qa >= 0 & status$Parent[row_num][1] == "Inactive" | compare_Qa >= 0 & phase$Parent[row_num][1] == "Claim"),
-    #  TRUE, FALSE)
     IsDiminished <- ifelse(LackOfDiligence == TRUE | Relinquished == TRUE |
       length(grep("partial relinquishment", relinquishment$comments[which(relinquishment$Parent == parent_genealogy$Parent[row_num][1])])) > 0 |
        ChangeOnPortion == FALSE & Child_Qa > 0 & round(Parent_Qa, 0) > round(Child_Qa), TRUE, FALSE)
@@ -359,13 +260,13 @@ get_diminishment <- function(row_num) {
   IsDiminished <- ifelse(length(grep("no relinquishment", relinquishment$comments[which(relinquishment$Parent == parent_genealogy$Parent[row_num][1])])) > 0, FALSE, IsDiminished)
   IsDiminished <- ifelse(length(grep("partial relinquishment", relinquishment$comments[which(relinquishment$Parent == parent_genealogy$Parent[row_num][1])])) > 0, TRUE, IsDiminished)
   IsDiminished <- ifelse(phase$Parent[row_num[1]] == "NewApp" & status$Parent[row_num][1] != "Inactive", FALSE, IsDiminished)
-  #IsDiminished <- ifelse(length(grep("OdessaRERvd", events[row_num,])) > 0 & LackOfDiligence == FALSE & Relinquished == FALSE, FALSE, IsDiminished)
   diminishment <- data.frame(Parent=Parent_Qa, Child=Child_Qa, diff=compare_Qa,
   ChangeOnPortion=ChangeOnPortion, Relinquished=Relinquished, lack_of_diligence=LackOfDiligence, 
   IsDiminished=IsDiminished, AllInactive=AllInactive, TrustWater=TrustWater, row.names=NULL)
   return(diminishment)
 }
 
+## Was there lack of due diligence between the permit and certificate phases?
 LackDiligence <- function(row_num) {
   ldf.df <- NULL
   Qa_ld <- na.omit(stack(AnnualVol_raw[row_num,]))
@@ -394,6 +295,7 @@ LackDiligence <- function(row_num) {
   return(ldf.df)
 }
 
+## Calculate sume of child quantities
 get_child_quant <- function(row_num, parent, child_ind, type) {
   parent_quant <- parent
   if (type == "AnnualQuant") {
@@ -457,17 +359,11 @@ get_child_quant <- function(row_num, parent, child_ind, type) {
       Child_o <- sum(lookup$Q)
     } else {
       if (nrow(lookup) > 1 & round(sum(lookup$Q), 0) > round(parent_quant, 0) & length(which(lookup$Q >= parent_quant)) > 0 & parent_quant > 0 & (length(grep("R", youngest_NR)) > 0 | length(grep("TW Acquisition", assignment[row_num[sum_child], "youngest"])) > 0)) {
-        #lookup <- lookup[!duplicated(lookup$Q),]
-        #if (length(grep("TW Acquisition", assignment[row_num[sum_child], "youngest"])) > 0 | length(grep("R", youngest_NR)) > 0 | length(grep("Yakima Adjud", assignment[row_num,])) > 0) {
         if (length(grep("R", youngest_NR)) > 0 | length(grep("Yakima Adjud", assignment[row_num,])) > 0) {
           lookup <- lookup[which(lookup$Q >= parent_quant),]
         } else {
           lookup_active <- parent_genealogy[row_num[sum_child], "youngest"][which(status[row_num[sum_child], "youngest"] != "Inactive")]
           lookup_active <- lookup[lookup$id %in% lookup_active,]
-          #lookup <- lookup[!duplicated(lookup$Q),]
-          #if (length(which(lookup$Q >= parent_quant)) < nrow(lookup)) {
-          #  lookup <- lookup[-which(lookup$Q >= parent_quant),]
-         # }
           if (round(sum(lookup$Q), 2) > round(parent_quant, 2)) {
             lookup <- lookup_active
             if (round(sum(lookup$Q), 2) > round(parent_quant, 2)) {
@@ -488,7 +384,6 @@ get_child_quant <- function(row_num, parent, child_ind, type) {
         if (nrow(lookup_active) == 0) {
           lookup <- lookup[!duplicated(lookup$Q),]
         }
-       # lookup <- lookup[!duplicated(lookup$Q),]
         if (round(sum(lookup$Q), 2) > round(parent_quant, 2)) {
           lookup <- lookup_active
         }
@@ -508,6 +403,8 @@ get_child_quant <- function(row_num, parent, child_ind, type) {
   }
   return(Child_o)
 }
+
+## Compute difference between quantity in application and certificate phases
 get_diff <- function(row_num) {
   df1 <- na.omit(data.frame(stack(AnnualVol_raw[row_num,-14])$values, stack(phase[row_num,-14])$values, 
     stack(parent_genealogy[row_num,-14])$values))
@@ -542,17 +439,8 @@ get_diff <- function(row_num) {
   }
   return(out)
 }
-
-
-
-
-other_diminish <- function(df, x) {
-  child <- df$WaRecId[x]
-  parent <- df$Parent[x]
-  child.df <- subset(ChangeIntent, Parent == parent)
-  other_diminish <- ifelse(df$compare_Qa[x] == 0 & sum(child.df$compare_Qa < 0), TRUE, FALSE)
-  return(other_diminish)
-}
+## Determine whether the change resulted in diminishment of the parent water right
+## child_quant0 == TRUE -> Diminishment == FALSE
 child_quant0 <- function(p, df) {
   child.df <- subset(ChangeIntent, Parent==df$Parent[p])
   child.df$IsDrought <- ifelse(length(grep("Drought", child.df$Phase)) > 0, TRUE, FALSE)
@@ -597,6 +485,8 @@ child_quant0 <- function(p, df) {
     df$Phase[p] %in% c("SupersedingCertificate", "SupersedingPermit")
   return(child_quant)
 }
+
+## Calculate the quantity of diminishment
 child_quantQ <- function(p, df) {
   #print(p)
   child.df <- subset(ChangeIntent_backup, Parent==df$Parent[p])
@@ -606,9 +496,6 @@ child_quantQ <- function(p, df) {
     grepl("VOID", child.df$PrimaryNumber) | 
     child.df$WaRecId %in% c(NA, child.df$Parent[1]) | 
     child.df$LastInactive == TRUE | child.df$IsApp == TRUE)])
-  #remove_child <- unique(child.df$WaRecId[which(grepl("VOID", child.df$PrimaryNumber) | 
-  #  child.df$WaRecId %in% c(NA, child.df$Parent[1]) | 
-  #  child.df$LastInactive == TRUE | child.df$IsApp == TRUE)])
   if (length(remove_child) > 0) {
     if (df$WaRecId[p] %in% remove_child) {
       return(FALSE)
@@ -630,7 +517,6 @@ child_quantQ <- function(p, df) {
         } else {
           child.df <- child.df
         }
-        #child.df <- child.df[!duplicated(child.df[,1]),]
       } else {
         child.df <- child.df[!duplicated(child.df[,1]),]
       }
@@ -658,10 +544,7 @@ child_quantQ <- function(p, df) {
   }
   return(child_quantQ)
 }
-
-
-
-
+## Is the water right the last in the geneology and inactivated because of a cancellation or denial?
 last_inactive <- function(docid) {
   df <- genealogy.ls[[as.character(ChangeIntent$Oldest[which(ChangeIntent$WaRecId==docid)][1])]]
   if (length(df) > 0) {
@@ -672,10 +555,7 @@ last_inactive <- function(docid) {
     if (i == 1) {
       out <- FALSE
     } else {
-      max_gen <- which(is.na(gen[row_ind,]))[1] - 1
-      st <- df$status[row_ind,i]
       sg <- df$stage[row_ind,i]
-      #out <- ifelse(st == "Inactive" & i == max_gen, TRUE, FALSE)
       out <- ifelse(length(grep("Pending|Denied|Withdrawn|Rejected|Cancelled", ignore.case=T, sg)) > 0, TRUE, FALSE)
     }
   } else {
@@ -683,6 +563,7 @@ last_inactive <- function(docid) {
   }
   return(out)
 }
+## Retrieve the annual quantity 
 get_Qa <- function(x, dfp, dfq) {
   Q_out <- strsplit(as.character(dfq[x]), split="\\|")[[1]]
   if (length(Q_out) == 1) {
@@ -708,6 +589,7 @@ get_Qa <- function(x, dfp, dfq) {
     return(Q_out)
   }
 }
+## Calculate difference between change ROE and Application phase quantities
 get_diff0 <- function(Qa, phase0) {
   Q <- as.character(Qa) |> strsplit(split="\\|") |> unlist()
   App <- phase0 |> strsplit(split="\\|") |> unlist() |> grep(pattern="App")
@@ -734,6 +616,7 @@ replace_zeroes <- function(x) {
   quants <- paste(quants, collapse="|")
   return(quants)
 }
+## Calculate the date of issuance for water right documents, priority is certificate.
 DocDate2 <- function(input_df, event_colname, date_colname, x) {
   df <- input_df
   out.df <- data.frame(matrix(nrow=1, ncol=0))
@@ -769,9 +652,7 @@ DocDate2 <- function(input_df, event_colname, date_colname, x) {
   return(out.df$DocDateFinal)
 }
 
-
-
-
+## Calculate the date of issuance for water right documents, priority is change ROE.
 DocDate <- function(input_df, event_colname, date_colname, x) {
   df <- input_df
   out.df <- data.frame(matrix(nrow=1, ncol=0))
@@ -806,7 +687,7 @@ DocDate <- function(input_df, event_colname, date_colname, x) {
   out.df$ChangeDateFinal[is.na(out.df$ChangeDateFinal)] <- "2019-01-01"
   return(out.df$ChangeDateFinal)
 }
-
+## Determine when the parent water right was changed
 ChangeDate <- function(input_df, event_colname, date_colname, x) {
   df <- input_df
   out.df <- data.frame(matrix(nrow=1, ncol=0))
@@ -839,38 +720,7 @@ ChangeDate <- function(input_df, event_colname, date_colname, x) {
   return(out.df$ChangeDateFinal)
 }
 
-
-
-get_phase0 <- function(x, df) {
-  phases <- strsplit(df$Phase[x], "\\|")[[1]]
-  phases <- gsub("SupersedingQuincyBasinPermit", "SupersedingPermit", phases)
-  phases <- gsub("LongForm", "Claim", phases)
-  phases <- gsub("QuincyBasinPermit", "Permit", phases)
-  p <- ifelse("AdjudicatedCertificate" %in% phases, "AdjudicatedCertificate", 
-    ifelse("Certificate" %in% phases, "Certificate", 
-    ifelse("Permit" %in% phases, "Permit",
-    ifelse("CertificateOfChange" %in% phases, "CertificateOfChange",
-    ifelse("SupersedingPermit" %in% phases, "SupersedingPermit",
-    ifelse("SupersedingCertificate" %in% phases, "SupersedingCertificate",
-    ifelse("Claim" %in% phases, "Claim", 
-    ifelse("ChangeROE" %in% phases, "ChangeROE", "Other"))))))))
-  return(p)
-}
-get_diff_old <- function(row_num) {
-  select_rows <- stack(assignment[row_num,])$values |> grep(pattern="Trust Wtr Right", invert=T)
-  all_Qa_max <- stack(AnnualVol_raw[row_num,])$values[select_rows] |> strsplit(split="\\|") |> 
-    lapply(function(x) ifelse(all(is.na(gsub("NA",NA,x))), 0, max(as.numeric(gsub("NA",NA,x)), na.rm=T))) |> unlist()
-  all_Qa_min <- stack(AnnualVol_raw[row_num,])$values[select_rows] |> strsplit(split="\\|") |> 
-    lapply(function(x) ifelse(all(is.na(gsub("NA",NA,x))), 0, min(as.numeric(gsub("NA",NA,x)), na.rm=T))) |> unlist()
-  compare <- unique(cbind(all_Qa_min, all_Qa_max))
-  compare[compare==0] <- NA
-  compare <- na.omit(compare) |> apply(2, sum)
-  compare <- round(compare["all_Qa_min"] - compare["all_Qa_max"], 0)
-  return(compare)
-}
-
 ################ Functions for summary tables ######################
-
 
 ChangeIntentTable <- function(cat.ls, cat_names) {
   ChangeIntentType <- ChangeIntentFinal[ChangeIntentFinal$Parent %in% post2000_parents,c("WaRecId", "Parent", "WaRecChangeIntentTypeCode", "DiminishingChange", "ChildQ", "Parent_Qa", "Parent_Qa2", "nonconsumptive", "QiOnly")]

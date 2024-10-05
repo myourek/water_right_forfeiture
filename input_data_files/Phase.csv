@@ -1,0 +1,189 @@
+Phase,Active,Inactive,Cat
+AdjudicatedCertificate,4243,812,AdjudicatedCertificate
+AdjudicatedCertificate.ConditionalFinalOrder,1168,5,AdjudicatedCertificate
+AdjudicatedCertificate.NewApp,0,1,AdjudicatedCertificate
+Certificate,39986,2405,Certificate
+Certificate.NewApp,17,13,Certificate
+Certificate.NewApp.Permit,11,0,Certificate
+Certificate.NewApp.Permit.ROE,81,8,Certificate
+Certificate.NewApp.ROE.Permit,60,10,Certificate
+Certificate.Permit,16,2,Certificate
+Certificate.Permit.NewApp,9,0,Certificate
+Certificate.Permit.NewApp.ROE,64,6,Certificate
+Certificate.Permit.ROE,211,6,Certificate
+Certificate.Permit.ROE.NewApp,72,12,Certificate
+Certificate.ROE.Certificate.Permit.NewApp,1,0,Certificate
+Certificate.ROE.NewApp,2,0,Certificate
+Certificate.ROE.NewApp.Permit,66,2,Certificate
+Certificate.ROE.Permit,183,2,Certificate
+Certificate.ROE.Permit.NewApp,73,11,Certificate
+Certificate.SupersedingPermit,14,0,Certificate
+Certificate.SupersedingPermit.ChangeApplication,1,0,Certificate
+CertificateOfChange,1870,516,CertificateOfChange
+CertificateOfChange.NewApp_,12,0,CertificateOfChange
+ChangeApplication,849,2133,App
+ChangeApplication.ChangePreApplication,1,0,App
+ChangeApplication.ChangeROE,908,1836,ChangeROE
+ChangeApplication.DroughtChange,0,25,DroughtChange
+ChangeApplication.DroughtChangeAuthorization,0,10,DroughtChange
+ChangeApplication.NewApp_,0,1,App
+ChangeApplication.Permit.ROE,0,2,Permit
+ChangeApplication.Permit.ROE.SupersedingCertificate,0,1,Superseding Certificate
+ChangeApplication.ROE.Permit,1,3,Permit
+ChangeApplication.ROE.SupersedingCertificate.Permit,1,0,Superseding Certificate
+ChangeApplication.SupersedingCertificate,10,5,Superseding Certificate
+ChangeApplication.SupersedingCertificate.Permit.ROE,1,0,Superseding Certificate
+ChangeApplication.SupersedingPermit,18,11,Superseding Permit
+ChangeApplication.SupersedingPermit.Certificate,1,0,Certificate
+ChangeApplication.TemporaryDonation,84,120,Temporary
+ChangeApplication.TemporaryUse,1,0,Temporary
+ChangePreApplication,2,0,App
+ChangeROE,735,653,ChangeROE
+ChangeROE.ChangeApplication,897,1875,ChangeROE
+ChangeROE.NewApp,0,10,ChangeROE
+Claim_Claim,2426,1159,LongFormClaim
+Claim_LongForm,91401,4663,LongFormClaim
+Claim_ShortForm,68305,837,ShortFormClaim
+Claim.Claim_LongForm,1,0,LongFormClaim
+Claim.Claim.Claim.Claim_LongForm,1,0,LongFormClaim
+Claim.ClaimAmendment_LongForm,5,0,LongFormClaim
+Claim.NewApp_LongForm,231,0,LongFormClaim
+ClaimAmendment.Claim_Claim,1,0,LongFormClaim
+ClaimAmendment.Claim_LongForm,5,0,LongFormClaim
+ConditionalFinalOrder,3,0,AdjudicatedCertificate
+ConditionalFinalOrder.AdjudicatedCertificate,1164,2,AdjudicatedCertificate
+DroughtAuthorization,0,3,DroughtChange
+DroughtAuthorization.NewApp,4,28,DroughtChange
+DroughtChange,0,87,DroughtChange
+DroughtChange.ChangeApplication,0,21,DroughtChange
+DroughtChangeAuthorization,0,2,DroughtChange
+DroughtChangeAuthorization.ChangeApplication,1,13,DroughtChange
+DroughtChangeAuthorization.NewApp,0,1,DroughtChange
+DroughtNewWater.NewApp,0,92,DroughtChange
+LongForm,0,1,LongFormClaim
+MitigatedPermit,30,1,Permit
+MitigatedPermit.NewApp,234,3,Permit
+MitigatedPermit.Permit.NewApp,1,1,Permit
+NewApp,3932,14763,App
+NewApp.Certificate,13,12,Certificate
+NewApp.Certificate.Permit,19,1,Certificate
+NewApp.Certificate.Permit.ROE,69,7,Certificate
+NewApp.Certificate.ROE.Permit,53,7,Certificate
+NewApp.CertificateOfChange_,14,1,CertificateOfChange
+NewApp.ChangeApplication_,0,1,App
+NewApp.ChangeROE,0,1,ChangeROE
+NewApp.ChangeROE.Permit,0,1,ChangeROE
+NewApp.Claim_Claim,1,0,LongFormClaim
+NewApp.Claim_LongForm,247,1,LongFormClaim
+NewApp.DroughtAuthorization,5,24,DroughtChange
+NewApp.DroughtNewWater,0,91,DroughtChange
+NewApp.MitigatedPermit,247,1,Permit
+NewApp.MitigatedPermit.ROE,1,0,Permit
+NewApp.Permit,558,307,Permit
+NewApp.Permit.Certificate,20,0,Certificate
+NewApp.Permit.Certificate.NewApp,1,0,Certificate
+NewApp.Permit.Certificate.ROE,84,10,Certificate
+NewApp.Permit.ROE,62,11,Permit
+NewApp.Permit.ROE.Certificate,62,11,Certificate
+NewApp.PreApp,5,0,App
+NewApp.QuincyBasinPermit,218,185,Permit
+NewApp.ROE,31,172,App
+NewApp.ROE.Certificate,1,0,Certificate
+NewApp.ROE.Certificate.Permit,63,10,Certificate
+NewApp.ROE.Permit,70,4,Permit
+NewApp.ROE.Permit.Certificate,60,12,Certificate
+NewApp.ShortTerm,7,128,Temporary
+NewApp.SupersedingCertificate_,1,0,Superseding Certificate
+NewApp.SupersedingPermit,10,0,Superseding Permit
+NewApp.SupersedingQuincyBasinPermit,3,7,Superseding Permit
+NewApp.TemporaryDonation,4,0,Temporary
+NewApp.TemporaryUse,8,44,Temporary
+NewApp.TemporaryUse.ChangeROE,0,1,Temporary
+Permit,810,11577,Permit
+Permit.Certificate,20,4,Certificate
+Permit.Certificate.NewApp,15,0,Certificate
+Permit.Certificate.NewApp.ROE,66,12,Certificate
+Permit.Certificate.ROE,191,6,Certificate
+Permit.Certificate.ROE.NewApp,67,17,Certificate
+Permit.ChangeApplication.ROE,2,4,Permit
+Permit.ChangeApplication.ROE.SupersedingCertificate,1,0,Superseding Certificate
+Permit.ChangeApplication.SupersedingCertificate.ROE,1,0,Superseding Certificate
+Permit.MitigatedPermit.NewApp,1,0,Permit
+Permit.NewApp,594,251,App
+Permit.NewApp.Certificate,16,0,Certificate
+Permit.NewApp.Certificate.ROE,62,17,Certificate
+Permit.NewApp.MitigatedPermit,1,0,Permit
+Permit.NewApp.ROE,65,12,Permit
+Permit.NewApp.ROE.AdjudicatedCertificate,1,0,AdjudicatedCertificate
+Permit.NewApp.ROE.Certificate,60,7,Certificate
+Permit.NewApp.SupersedingCertificate.Certificate.ROE,0,1,Superseding Certificate
+Permit.ROE,2,0,Permit
+Permit.ROE.Certificate,187,6,Certificate
+Permit.ROE.Certificate.NewApp,70,15,Certificate
+Permit.ROE.ChangeApplication,0,4,Permit
+Permit.ROE.ChangeApplication.SupersedingCertificate,1,0,Superseding Certificate
+Permit.ROE.NewApp,72,8,Permit
+Permit.ROE.NewApp.AdjudicatedCertificate,0,1,AdjudicatedCertificate
+Permit.ROE.NewApp.Certificate,55,15,Certificate
+Permit.ROE.SupersedingCertificate,1,0,Superseding Certificate
+Permit.ROE.SupersedingCertificate.ChangeApplication,0,1,Superseding Certificate
+Permit.SupersedingCertificate.ChangeApplication.ROE,1,0,Superseding Certificate
+Permit.SupersedingCertificate.ROE,1,1,Superseding Certificate
+Permit.SupersedingCertificate.ROE.ChangeApplication,2,0,Superseding Certificate
+PreApp,14,0,App
+PreApp.NewApp,5,0,App
+PreApp.NewApp.Permit.ROE,1,0,Permit
+QuincyBasinPermit,263,183,Permit
+QuincyBasinPermit.NewApp,218,154,Permit
+ROE.Certificate.NewApp,4,0,Certificate
+ROE.Certificate.NewApp.Permit,74,6,Certificate
+ROE.Certificate.Permit,197,8,Certificate
+ROE.Certificate.Permit.NewApp,57,15,Certificate
+ROE.ChangeApplication,0,1,App
+ROE.ChangeApplication.Permit,0,3,Permit
+ROE.ChangeApplication.SupersedingCertificate.Permit,2,0,Superseding Certificate
+ROE.MitigatedPermit.NewApp,1,0,Permit
+ROE.NewApp,34,195,App
+ROE.NewApp.Certificate,0,1,Certificate
+ROE.NewApp.Certificate.Permit,81,14,Certificate
+ROE.NewApp.NewApp,1,0,App
+ROE.NewApp.Permit,76,6,Permit
+ROE.NewApp.Permit.Certificate,55,9,Certificate
+ROE.Permit.Certificate,171,7,Certificate
+ROE.Permit.Certificate.NewApp,54,14,Certificate
+ROE.Permit.ChangeApplication,0,5,Permit
+ROE.Permit.ChangeROE.NewApp_,0,1,ChangeROE
+ROE.Permit.NewApp,65,8,Permit
+ROE.Permit.NewApp.Certificate,74,7,Certificate
+ROE.Permit.SupersedingCertificate,3,0,Superseding Certificate
+ROE.Permit.SupersedingCertificate.ChangeApplication,3,0,Superseding Certificate
+ROE.SupersedingCertificate.ChangeApplication.Permit,1,1,Superseding Certificate
+ROE.SupersedingCertificate.Permit,1,0,Superseding Certificate
+ROE.SupersedingCertificate.Permit.ChangeApplication,1,0,Superseding Certificate
+ShortTerm,1,8,Temporary
+ShortTerm.NewApp,10,132,Temporary
+SupersedingAdjudicatedCert,57,1,Superseding Certificate
+SupersedingCertificate,1441,141,Superseding Certificate
+SupersedingCertificate.Certificate,0,1,Superseding Certificate
+SupersedingCertificate.ChangeApplication,12,1,Superseding Certificate
+SupersedingCertificate.ChangeApplication.ROE.Permit,0,1,Superseding Certificate
+SupersedingCertificate.Permit.ChangeApplication.ROE,1,0,Superseding Certificate
+SupersedingCertificate.Permit.ROE,2,0,Superseding Certificate
+SupersedingCertificate.Permit.ROE.ChangeApplication,1,0,Superseding Certificate
+SupersedingCertificate.ROE.Permit,1,0,Superseding Certificate
+SupersedingCertificateOfChange,3,0,Superseding Certificate
+SupersedingPermit,481,89,Superseding Permit
+SupersedingPermit.Certificate,12,0,Certificate
+SupersedingPermit.ChangeApplication,15,7,Superseding Permit
+SupersedingPermit.NewApp,3,0,Superseding Permit
+SupersedingPermit.NewApp.Certificate,1,0,Certificate
+SupersedingPermit.NewApp.Permit,1,0,Superseding Permit
+SupersedingPermit.SupersedingCertificate,1,0,Superseding Certificate
+SupersedingQuincyBasinPermit,112,21,Superseding Permit
+SupersedingQuincyBasinPermit.NewApp,3,4,Superseding Permit
+TemporaryDonation,272,115,Temporary
+TemporaryDonation.ChangeApplication,78,128,Temporary
+TemporaryDonation.NewApp,2,0,Temporary
+TemporaryUse,0,11,Temporary
+TemporaryUse.ChangeROE.ChangeApplication,1,0,ChangeROE
+TemporaryUse.NewApp,4,45,Temporary

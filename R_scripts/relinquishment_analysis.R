@@ -1,29 +1,33 @@
-library(lessR)
+###############################################
+# Code for statistical analyses, creating     #
+# tables, and creating figures                #
+#                                             #
+# Matt Yourek                                 #  
+# matthew.yourek@wsu.edu                      #
+# October 3, 2024                             # 
+###############################################
+
+
 library(ggplot2)
-library(knitr)
 library(sf)
 library(gridExtra)
 library(grid)
-setwd("C:/Users/matthew.yourek/R_scripts/Diminishment")
+
+setwd("~/water_right_forfeiture")
 
 #### Notes #####
 ## pairwise.t.test uses chi-square test to determine p values. The confidence interval for difference in proportions seems to use a critical t value and 
 ### CI  = p1-p2 +/- t*sqrt(sqrt(p1*(1-p1)/n1) ^ 2 + sqrt(p2*(1-p2)/n2) ^ 2)
 
-
-
-
-water_rights <- read.table("water_rights_all_updated_adj2.csv", sep=",", encoding="ANSI", header=T)
+water_rights <- read.table("input_data_files/water_rights_all_updated_adj2.csv", sep=",", encoding="ANSI", header=T)
 water_rights$Comment <- iconv(water_rights$Comment, from="ISO-8859-1", to="UTF-8")
 water_rights$EventComment <- iconv(water_rights$EventComment, from="ISO-8859-1", to="UTF-8")
 water_rights$Status[water_rights$Stage %in% c("Rejected", "Withdrawn")] <- "Inactive"
 water_rights$QaTotal <- sapply(1:nrow(water_rights), function(x) replace_zeroes(x))
-water_rights$DocDate <- as.Date(water_rights$DocDate)
-ChangeIntentFinal <- read.csv("WRChanges.csv")
+ChangeIntentFinal <- read.csv("cleaned_data/WRChanges.csv")
 ChangeIntentFinal$ChangeDate <- as.Date(ChangeIntentFinal$ChangeDate)
 ChangeIntentFinal$Pre1967 <- ifelse(ChangeIntentFinal$ChangeDate < as.Date("1967-07-01"), TRUE, FALSE)
 ChangeIntentFinal$ParentPhase <- water_rights$Phase[match(ChangeIntentFinal$Parent, water_rights$WRDocID)]
-diminishment_id <- "DiminishingChange"
 
 reg_lookup <- data.frame(Region=c(rep("SWRO", 12), rep("NWRO", 7), rep("CRO", 7), rep("ERO", 13)),
   County=c("Clallam", "Clark", "Cowlitz", "Grays Harbor", "Jefferson", "Mason", "Lewis", "Pacific", "Pierce", "Skamania", "Thurston", "Wahkiakum", "Island", "King", "Kitsap", "San Juan", "Skagit", "Snohomish", "Whatcom", "Benton", "Chelan", "Douglas", "Kittitas", "Klickitat", "Okanogan", "Yakima", "Adams", "Asotin", "Columbia", "Ferry",
@@ -38,7 +42,28 @@ for (o in dup_oldest) {
 }
 
 ChangeIntentFinal_original <- ChangeIntentFinal
-ChangeIntentFinal <- subset(ChangeIntentFinal, ChangeDate > as.Date("1967-07-01") & ChangeDate < as.Date("2020-01-01"))
+## select changes from 1967-07-01 (passage of relinquishment statutes) through 2019
+ChangeIntentFinal <- subset(ChangeIntentFinal, ChangeDate > as.Date("1967-07-01") & ChangeDate < as.Date("2020-01-01")) 
+
+##################### Summary of WRTS database ####################################################
+
+records <- read.csv("input_data_files/Phase.csv")
+records$Cat[records$Cat == "DroughtChange"] <- "Temporary"
+records$Cat[records$Cat %in% c("ShortFormClaim", "LongFormClaim")] <- "Claim"
+records.plot <- aggregate(records[,c("Active", "Inactive")], list(records$Cat), sum)
+names(records.plot)[1] <- c("Phase")
+records.plot$Phase <- c("Adjudicated Certificate", "Application", "Certificate", "Certificate of Change", "Change ROE", 
+                        "Claim", "Permit", "Superseding Certificate", "Superseding Permit", "Temporary")
+records.plot$Total <- records.plot$Active + records.plot$Inactive
+
+jpeg("Figures/WRTS_records.jpg", width=3800, height=2800, units="px", res=600)
+dotchart(log10(records.plot$Total), labels=records.plot$Phase, pch=16, xlab="Count", xaxt="n", xlim=c(2.6, 5.3))
+axis(side=1, at=c(3, 4, 5), labels= c("10^3", "10^4", "10^5"))
+text(labels=c("7,400", "22,985", "45,629", "2,414", "6,918", "169,285", "15,481", "1,705", "785", "1,610"), x=log10(records.plot$Total), y=1:10, adj=c(1.1, 0))
+dev.off()
+
+#### Summary of changes  ##########
+
 n_change <- length(unique(ChangeIntentFinal$WaRecId))
 n_diminished <- length(unique(subset(ChangeIntentFinal, DiminishingChange == TRUE)$WaRecId))
 n_parent <- length(unique(ChangeIntentFinal$Parent))
@@ -72,7 +97,6 @@ relinqd_counts <- compare_years.t$Relinquished
 names(relinqd_counts) <- c("Post-2000", "Pre-2000")
 all_counts <- compare_years.t$AllParents
 names(all_counts) <- c("Post-2000", "Pre-2000")
-ptest <- Prop_test(n_succ=relinqd_counts, n_tot=all_counts)
 
 post2000_parents <- unique(compare_years$Parent[compare_years$Pre2000 == FALSE]) # parents with any changes after 2000
 allQuant_Parent_all <- get_oldest_Qa_all() # forfeiture by original parent and parents with changes
@@ -109,8 +133,7 @@ all_ChangeWR$Oldest_Qa <- allQuant_Parent_all$Oldest_Qa[match(all_ChangeWR$Paren
 means_test <- subset(all_ChangeWR, DiminishingChange == TRUE)
 means_test$Pre2000 <- factor(means_test$Pre2000)
 means_test_2 <- subset(means_test, !(ChangeYear %in% c("(1981,1982]", "(1972,1973]")))
-#aggregate(means_test_2$RelRate, list(means_test_2$Pre2000), mean)
-TukeyHSD(aov(RelRate ~ Pre2000, data=means_test))
+TukeyHSD(aov(RelRate ~ Pre2000, data=means_test)) ## compare group means of per-incident reduction rate using Tukey's Honest Significant Difference
 
 all_ChangeWR$Relinq_Qa[all_ChangeWR$QiOnly == TRUE] <- 0 ## reset relinquishment in terms of annual quantity for the rights with diminishment in instantaneous quantity only
 YearQuant <- all_ChangeWR
@@ -143,10 +166,6 @@ for (o in dup_oldest) {
     YearQuant$Oldest_Qa2[YearQuant$Oldest == o & YearQuant$Pre2000 == k] <- sum_Parent
   }
 }
-#dup_oldest_diff <- YearQuant$Oldest[which(duplicated(YearQuant$Oldest))] # same original parent
-#dup_oldest_diff <- dup_oldest_diff[!(dup_oldest_diff %in% dup_oldest)] # same original parent but different time period
-#YearQuant$Oldest_Qa[YearQuant$Oldest %in% dup_oldest_diff] <- YearQuant$Parent_Qa[YearQuant$Oldest %in% dup_oldest_diff] ## quantity of original parent for each time period
-
 YearQuant <- subset(YearQuant, nonconsumptive == FALSE) # We omit non-consumptive rights and rights with diminishment in Qi only when calculating the aggregate volume of diminishment and rate of diminishment
 YearQuant.df <- cbind(aggregate(YearQuant$Relinq_Qa, list(YearQuant$Pre2000, YearQuant$Oldest), sum),
                          aggregate(YearQuant$Oldest_Qa2, list(YearQuant$Pre2000, YearQuant$Oldest), mean)[,3]) ## 6465112
@@ -159,7 +178,7 @@ RelQuantFrac <- aggregate(all_ChangeWR$RelRate, list(all_ChangeWR$ChangeYear), f
 
 change.df <- data.frame(ChangeYear=names(table(all_ChangeWR$ChangeYear)), Total=as.numeric(table(all_ChangeWR$ChangeYear)), Relinquished=as.numeric(table(all_ChangeWR[all_ChangeWR$DiminishingChange == TRUE,]$ChangeYear)))
 change.df$FracDim <- round(change.df[,3] / change.df$Total, 3) # forfeiture rate
-#change.df$NotDim <- change.df$Total - change.df[,3]
+
 change.stack <- data.frame(ChangeYear=change.df$ChangeYear, stack(change.df)[-c(1:nrow(change.df)),])
 change.stack$values <- as.numeric(change.stack$values)
 
@@ -174,7 +193,6 @@ change.df$ParentQa[is.na(change.df$ParentQa)] <- 0
 change_Pre2000 <- change.df[1:33,]
 change_Post2000 <- change.df[34:53,]
 
-
 ### Table 3. Comparison of forfeiture between pre-2000 and post-2000 change authorizations
 
 change_year_table <- data.frame(rbind(c(sum(change_Pre2000$Total), sum(change_Pre2000$Relinquished), sum(change_Pre2000$Relinquished) / sum(change_Pre2000$Total),
@@ -186,9 +204,7 @@ row.names(change_year_table) <- c("Pre2000", "Post2000")
 
 ### Fig. 4. Plot of forfeiture over time ######################################
 
-
-change.df$Mag[change.df$ChangeYear == "(2009,2010]"] <- 125000
-
+change.df$Mag[change.df$ChangeYear == "(2009,2010]"] <- 125000  ## Trim this large relinquishment volume for visibility on the graph
 
 xlab <- rep(seq(from=1967, to=2019, by=2), each=2)
 xlab[seq(from=2, to=length(xlab), by=2)] <- " "
@@ -197,11 +213,6 @@ plot_theme <- theme(axis.text.x=element_text(angle=90, vjust=0.5, color="black",
                     axis.text.y=element_text(color="black", size=text_size), axis.title=element_text(color="black", size=text_size+2),
                     title=element_text(color="black", size=text_size+2))
 
-
-#pTotal <- ggplot(subset(change.stack, ind %in% c("Relinquished", "NotDim")), aes(x=ChangeYear, y=values, fill=ind)) + geom_bar(position="stack", stat="identity") + 
-#  theme(axis.text.x=element_text(angle=90, colour="black"), axis.text.y=element_text(colour="black")) + xlab("") + ylab("Count") + ggtitle("All Changed water rights") +
-# scale_fill_manual("",values=c(Relinquished="red", NotDim="darkgrey"), labels=c("Relinqd", "Not Relinqd")) +
-# scale_x_discrete(breaks=seq(from=1966,2019,by=1), label=xlab)
 pDim <- ggplot(change.df[,], aes(x=ChangeYear, y=Relinquished)) + geom_col(fill="black") +
   plot_theme + xlab("") + ylab("Frequency (count)") + ggtitle("(a)") +
   scale_x_discrete(label=xlab) + scale_y_continuous(expand=expansion(mult=c(0,0.05)))
@@ -216,23 +227,19 @@ pMagFrac <- ggplot(change.df[,], aes(x=ChangeYear, y=RelRate)) + geom_col(fill="
   scale_x_discrete(label=xlab) + scale_y_continuous(expand=expansion(mult=c(0,0.05)))
 
 p1 <- grid.arrange(pDim, pFracDim, pMag, pMagFrac, ncol=2) 
-p2 <- grid.arrange(pDim, pFracDim, ncol=1)
-p3 <- grid.arrange(pFracDim, pMagFrac, ncol=2)
-jpeg("Fig.1_frequency_magnitude.jpg", width=4000, height=1500, units="px", res=400)
-plot(p3)
-dev.off()
-jpeg("timeline_plot.jpg", width=6000, height=4500, units="px", res=600)
+
+jpeg("Figures/timeline_plot.jpg", width=6000, height=4500, units="px", res=600)
 plot(p1)
 dev.off()
 
+## Relinquishment quantity by WRIA (Figure 5) ##
 
-## Relinquishment quantity by WRIA
-
+diminishment_id <- "DiminishingChange"
 WRIA_Qa.df <- WRIA_quants()
-WRIA.poly <- st_read(dsn="C:/Users/matthew.yourek/grassdata/WR_WAT_WRIA.gdb", layer="Water_Resource_Inventory_Areas")
-Region.poly <- st_read(dsn="C:/Users/matthew.yourek/grassdata/ECY_LOC_EcologyRegions.gdb")
+WRIA.poly <- st_read(dsn="input_maps/WR_WAT_WRIA.gdb", layer="Water_Resource_Inventory_Areas")
+Region.poly <- st_read(dsn="input_maps/ECY_LOC_EcologyRegions.gdb")
 Region.poly$ECY_REGION_CD = factor(Region.poly$ECY_REGION_CD, levels=c("SWRO", "NWRO", "CRO", "ERO"))
-WRIA_reg <- read.csv("WRIA_region_table.csv")
+WRIA_reg <- read.csv("input_data_files/WRIA_region_table.csv")
 WRIA.poly$Relinqd <- WRIA_Qa.df$Relinquished[match(WRIA.poly$WRIA_NR, WRIA_Qa.df$WRIA_ID)]
 WRIA.poly$Quant <- WRIA_Qa.df$Relinq_Qa[match(WRIA.poly$WRIA_NR, WRIA_Qa.df$WRIA_ID)]
 WRIA.poly$FractionWR <- WRIA_Qa.df$Freq[match(WRIA.poly$WRIA_NR, WRIA_Qa.df$WRIA_ID)]
@@ -254,7 +261,6 @@ pWR <- ggplot() +
   scale_fill_gradientn(colors=plot_colors, trans="log", breaks=c(2, 15, 30, 60, 120), name="") + 
   geom_sf(data=Region.poly, fill=NA, lwd=ln_wd, aes(colour=ECY_REGION_CD), inherit.aes=F) +
   scale_color_manual(values=c("purple","darkblue","black","forestgreen"), name="Region") +
-  # geom_sf_text(data=WRIA.poly, aes(label=Relinqd), colour="black", size=2, inherit.aes=F) +
   background + xlab("") + ylab("") + 
   theme(text=element_text(size=text_size), legend.text=element_text(size=text_size)) + ggtitle("(a)") +
   theme(legend.key.height=unit(legend_height,"inch"), legend.key.width=unit(legend_width,"inch"))
@@ -263,7 +269,6 @@ pWRFrac <- ggplot() +
   scale_fill_gradientn(colors=plot_colors, name="") + 
   geom_sf(data=Region.poly, fill=NA, lwd=ln_wd, aes(colour=ECY_REGION_CD), inherit.aes=F, show.legend=F) +
   scale_color_manual(values=c("purple","darkblue","black","forestgreen"), name="Region") +
-  #geom_sf_text(data=WRIA.poly, aes(label=FractionWR), colour="black", size=2, inherit.aes=F) +
   background + xlab("") + ylab("") + 
   theme(text=element_text(size=text_size), legend.text=element_text(size=text_size)) + ggtitle("(b)") +
   theme(legend.key.height=unit(legend_height2,"inch"), legend.key.width=unit(legend_width,"inch"))
@@ -272,7 +277,6 @@ pQuant <- ggplot() +
   scale_fill_gradientn(colors=plot_colors, trans="log", breaks=c(10, 100, 1000, 10000, 10000,300000), name="Acre-feet") + 
   geom_sf(data=Region.poly, fill=NA, lwd=ln_wd, aes(colour=ECY_REGION_CD), inherit.aes=F, show.legend=F) +
   scale_color_manual(values=c("purple","darkblue","black","forestgreen"), name="Region") +
-  #geom_sf_text(data=WRIA.poly, aes(label=Quant), colour="black", size=2, inherit.aes=F) +
   background + xlab("") + ylab("") + 
   theme(text=element_text(size=text_size), legend.text=element_text(size=text_size)) + ggtitle("(c)") +
   theme(legend.key.height=unit(legend_height2,"inch"), legend.key.width=unit(legend_width,"inch"))
@@ -281,43 +285,37 @@ pQuantFrac <- ggplot() +
   scale_fill_gradientn(colors=plot_colors, name="") +
   geom_sf(data=Region.poly, fill=NA, lwd=ln_wd, aes(colour=ECY_REGION_CD), inherit.aes=F, show.legend=F) +
   scale_color_manual(values=c("purple","darkblue","black","forestgreen"), name="Region") +
-  #geom_sf_text(data=WRIA.poly, aes(label=FractionQa), colour="black", size=2, inherit.aes=F) +
   background + xlab("") + ylab("") + 
   theme(text=element_text(size=text_size), legend.text=element_text(size=text_size)) + ggtitle("(d)") +
   theme(legend.key.height=unit(legend_height2,"inch"), legend.key.width=unit(legend_width,"inch"))
 
-
-jpeg("diminishment_by_WRIA.jpeg", res=400, width=2000, height=1000, units="px")
+jpeg("Figures/diminishment_by_WRIA.jpeg", res=400, width=2000, height=1000, units="px") ## Fig. 5
 grid.arrange(pWR, pWRFrac, pQuant, pQuantFrac, ncol=2)
 dev.off()
-
-#jpeg("diminishment_by_WRIA_highlights.jpeg", res=400, width=3000, height=1000, units="px")
-#grid.arrange(pWRFrac, pQuantFrac, ncol=2)
-#dev.off()
 
 ##### Relinquishment by change intent type ##########################
 
 cat.ls <- list("AddIrrigatedArea", "WRAOther", "AddPurpose", "ChangePurpose", "ChangePlaceOfUse", c("ChangeSource", "AddSource"), c("ChangeOther", "Consolidate"))
 cat_names <- c("AddIrrigatedArea", "WaterRightAcquisition", "AddPurpose", "ChangePurpose", "ChangePlaceOfUse", "AddOrChangeSource", "ChangeOther")
 ByIntent <- ChangeIntentTable(cat.ls, cat_names)
-IntentTypeTable <- ByIntent[[1]]
+IntentTypeTable <- ByIntent[[1]] ## Table 8
 IntentQuant <- ByIntent[[2]]
 
 intent_rel <- IntentTypeTable$Relinquished
 names(intent_rel) <- IntentTypeTable$IntentType
 intent_all <- IntentTypeTable$AllParents
 names(intent_all) <- IntentTypeTable$IntentType
+## pairwise comparison test of proportions with correction for multiple comparisons
 intent_test <- pairwise.prop.test(x=intent_rel, n=intent_all)$p.value
 intent_test <- ifelse(is.na(intent_test), "-", ifelse(intent_test<0.001, "<0.001", ifelse(round(intent_test, 4) == 1, ">0.999", round(intent_test, 3))))
 
 means_test <- subset(IntentQuant, DiminishingChange == TRUE)
 TukeyHSD(aov(RelRate ~ IntentType, data=means_test))
 
-
 #### Relinquishment by ownership ###########################
 
 ByOwner <- PersonTypeTable()
-ChangePersonType <- ByOwner[[1]]
+ChangePersonType <- ByOwner[[1]] ## Table 5
 PersonType <- ByOwner[[2]]
 
 means_test <- subset(PersonType, DiminishingChange == TRUE)
@@ -329,17 +327,14 @@ person_all <- ChangePersonType$AllParents
 names(person_all) <- ChangePersonType$PersonType
 person_test <- pairwise.prop.test(x=person_rel, n=person_all)$p.value
 person_test <- ifelse(is.na(person_test), "-", ifelse(person_test<0.001, "<0.001", ifelse(round(person_test, 4) == 1, ">0.999", round(person_test, 3))))
-write.csv(person_test, "ownership_test.csv", row.names=T)
 
-
-#### Relinquishment by purpose ###########################
+#### Relinquishment by purpose of use type ###########################
 
 purpose_types = list("IR", "DG|DM|DS", "MU", "CI", "FS", "PO")
 purpose_names <- c("Irrigation", "Domestic", "Municipal", "Commercial", "Fish", "Power")
 
-
 ByPurpose <- PurposeTypeTable(purpose_types, purpose_names)
-PurposeTable <- ByPurpose[[1]]
+PurposeTable <- ByPurpose[[1]] ## Table 6
 PurposeQuant <- ByPurpose[[2]]
 
 means_test <- subset(PurposeQuant, DiminishingChange == TRUE)
@@ -352,11 +347,10 @@ names(purpose_all) <- PurposeTable$Purpose
 purpose_test <- pairwise.prop.test(x=purpose_rel, n=purpose_all)$p.value
 purpose_test <- ifelse(is.na(purpose_test), "-", ifelse(purpose_test<0.001, "<0.001", round(purpose_test, 3)))
 
-
 ## Relinquishment by source
 
 BySource <- SourceTypeTable()
-SourceTable <- BySource[[1]]
+SourceTable <- BySource[[1]] ## Table 7
 SourceQuant <- BySource[[2]]
 
 source_rel <- SourceTable$Relinquished
@@ -507,7 +501,6 @@ row_num <- which(ChangePhase$Parent %in% phase_replace2$docid)
 ChangePhase$ParentPhase[row_num] <- phase_replace2$phase[match(ChangePhase$Parent[row_num], phase_replace2$docid)]
 ChangePhase$ParentPhase[which(ChangePhase$Parent %in% to_permit)] <- "Permit"
 ChangePhase$ParentPhase[ChangePhase$ParentPhase %in% c("SupersedingPermit", "SupersedingCertificate", "SupersedingAdjudicatedCertificate", "CertificateOfChange", "ChangeROE")] <- "SupersedingDoc"
-#ChangePhase <- ChangePhase[-which(ChangePhase$ParentPhase == "Other"),]
 
 ChangePhase$Relinq_Qa <- allQuant_Parent$Relinq_Qa[match(ChangePhase$Parent, allQuant_Parent$Parent)]
 ChangePhase$Parent_Qa <- allQuant_Parent$Parent_Qa[match(ChangePhase$Parent, allQuant_Parent$Parent)]
@@ -566,13 +559,11 @@ PhaseQuant.df$AggRate <- PhaseQuant.df$Relinq_Qa / PhaseQuant.df$Oldest_Qa2
 PhaseTable$AggRate <- PhaseQuant.df$AggRate[match(PhaseTable$PhaseType, PhaseQuant.df$PhaseType)]
 PhaseTable$Relinq_Qa <- round(PhaseQuant.df$Relinq_Qa[match(PhaseTable$PhaseType, PhaseQuant.df$PhaseType)], 0)
 phase_order <- c("Claim", "Permit", "Certificate", "AdjudicatedCertificate", "SupersedingDoc", "CourtClaim")
-PhaseTable <- PhaseTable[match(phase_order, PhaseTable$PhaseType),c(1:4,7,5,6)]
+PhaseTable <- PhaseTable[match(phase_order, PhaseTable$PhaseType),c(1:4,7,5,6)]  ## Table 4
 PhaseTable[,-c(1:3,5)] <- apply(PhaseTable[,-c(1:3,5)], 2, function(x) round(x, 3))
-
 
 means_test <- subset(PhaseQuant, DiminishingChange == TRUE)
 TukeyHSD(aov(RelRate ~ ParentPhase, data=means_test))
-
 
 rel_phase <- PhaseTable$Relinquished
 names(rel_phase) <- PhaseTable$PhaseType
@@ -582,101 +573,9 @@ test <- pairwise.prop.test(x=rel_phase, n=all_phase)
 test.table <- test$p.value
 test.table <- ifelse(is.na(test.table), "-",ifelse(test.table<0.001, "<0.001", ifelse(round(test.table, 8) == 1, ">0.999", round(test.table, 3))))
 
-##################### Summary of WRTS database ####################################################
-
-records <- read.csv("Phase.csv")
-records$Cat[records$Cat == "DroughtChange"] <- "Temporary"
-records$Cat[records$Cat %in% c("ShortFormClaim", "LongFormClaim")] <- "Claim"
-records.plot <- aggregate(records[,c("Active", "Inactive")], list(records$Cat), sum)
-names(records.plot)[1] <- c("Phase")
-records.plot$Phase <- c("Adjudicated Certificate", "Application", "Certificate", "Certificate of Change", "Change ROE", 
-  "Claim", "Permit", "Superseding Certificate", "Superseding Permit", "Temporary")
-records.plot$Total <- records.plot$Active + records.plot$Inactive
-
-jpeg("WRTS_records_active&inactive.jpg", width=3800, height=2800, units="px", res=600)
-dotchart(log10(records.plot$Total), labels=records.plot$Phase, pch=16, xlab="Count", xaxt="n", xlim=c(2.2, 6))
-axis(side=1, at=c(3, 4, 5), labels= c("10^3", "10^4", "10^5"))
-text(labels=c("7,400", "22,985", "45,629", "2,414", "6,918", "169,285", "15,481", "1,705", "785", "1,610"), x=log10(records.plot$Total), y=1:10, adj=c(-0.2, 0.5))
-points(log10(records.plot$Active), 1:nrow(records.plot), pch=16, col="red")
-text(labels=c("6,579", "5,468", "42,902", "1,896", "2,541", "162,624", "2,999", "1,551", "646", "481"), x=log10(records.plot$Active), y=1:10, adj=c(1.2, 0.5), col="red")
-dev.off()
-
-jpeg("WRTS_records.jpg", width=3800, height=2800, units="px", res=600)
-dotchart(log10(records.plot$Total), labels=records.plot$Phase, pch=16, xlab="Count", xaxt="n", xlim=c(2.6, 5.3))
-axis(side=1, at=c(3, 4, 5), labels= c("10^3", "10^4", "10^5"))
-text(labels=c("7,400", "22,985", "45,629", "2,414", "6,918", "169,285", "15,481", "1,705", "785", "1,610"), x=log10(records.plot$Total), y=1:10, adj=c(1.1, 0))
-dev.off()
-
-
-
-ggplot(records.plot, aes(x=Count, y=Type)) + geom_dotplot(binaxis='y') + scale_x_log
-
-
-#### Summary of changes ##########
-
-
-ChangeSummary <- unique(ChangeIntentFinal[ChangeIntentFinal$Pre1967 == FALSE, c("WaRecId", "Parent", "DiminishingChange", "Post2000", "Phase")])
-length(unique(ChangeSummary$WaRecId))
-length(unique(ChangeSummary$WaRecId[ChangeSummary$DiminishingChange == TRUE]))
-length(unique(ChangeSummary$Parent))
-length(unique(ChangeSummary$Parent[ChangeSummary$DiminishingChange == TRUE]))
-
-
-a=table(ChangeSummary$Parent)
-
-
-###### Relinquishment Analysis ##############
-
-relinqd_cert <- water_rights$WRDocID[grepl("Relinqd", water_rights$EventType)] # all certificates of relinquishment
-relinqd_cert <- relinqd_cert[-which(relinqd_cert==6803099)]
-
-not_change <- relinqd_cert[!relinqd_cert %in% unique(c(parent_child$Parent, parent_child$Child))]
-check <- ChangeIntentFinal$WaRecId[which((ChangeIntentFinal$WaRecId %in% relinqd_cert | ChangeIntentFinal$Parent %in% relinqd_cert) & ChangeIntentFinal$DiminishingChange == F)]
-not_change <- c(not_change, ChangeIntentFinal$WaRecId[which((ChangeIntentFinal$WaRecId %in% relinqd_cert | ChangeIntentFinal$Parent %in% relinqd_cert) & ChangeIntentFinal$DiminishingChange == F)])
-
-relinqd_date <- sapply(not_change, function(x) unlist(strsplit(water_rights$EventDoneDate[water_rights$WRDocID == x], split="\\|"))[grep("Relinqd", unlist(strsplit(water_rights$EventType[water_rights$WRDocID == x], split="\\|")))[1]])
-relinqd.df <- data.frame(docid=not_change, date=relinqd_date)                                                 
-relinqd.df$Event <- water_rights$EventType[match(relinqd.df$docid, water_rights$WRDocID)]
-
-
-relinqd_changes <- lapply(genealogy.ls, function(x) x$diminishment$Relinquished) |> unlist()
-names(relinqd_changes[relinqd_changes == TRUE])
-
-
-
-## Relinquishment by assignment group
-ChangeAssign <- unique(ChangeIntentFinal[ChangeIntentFinal$Pre1967 == FALSE,c("WaRecId", diminishment_id)])
-ChangeAssign$Assignment <- water_rights$AssignmentGroup[match(ChangeAssign$WaRecId, water_rights$WRDocID)]
-CsvBd <- ChangeAssign[grepl("Cnty Conserv.", ChangeAssign$Assignment),] # Dan suggested we should group all boards
-JohnDay <- ChangeAssign[grepl("John Day", ChangeAssign$Assignment),]
-Drought <- ChangeAssign[grepl("Drought", ChangeAssign$Assignment),]
-Odessa <- ChangeAssign[grepl("Odessa", ChangeAssign$Assignment),]
-IrrEff <- ChangeAssign[grepl("Irrigation Eff", ChangeAssign$Assignment),]
-TW <- ChangeAssign[grepl("TW Acquisition", ChangeAssign$Assignment),]
-QB <- ChangeAssign[grepl("QB State", ChangeAssign$Assignment),]
-Assign.df <- rbind(CsvBd, JohnDay, Odessa, IrrEff, TW, QB)
-names <- c(rep("ConservBd", nrow(CsvBd)), rep("JohnDayRsv", nrow(JohnDay)), rep("Odessa", nrow(Odessa)), rep("IrrigEffGrants", nrow(IrrEff)),
-           rep("TW-Permanent", nrow(TW)), rep("QuincyBasin", nrow(QB)))
-Assign.df <- cbind(AssignGroup=names, Assign.df)[,1:3]
-t1 <- data.frame(table(Assign.df[Assign.df[,diminishment_id]==TRUE,]$AssignGroup))
-t2 <- data.frame(table(unique(Assign.df[,c("WaRecId", "AssignGroup")])$AssignGroup))
-Assign.df <- merge(t1, t2, "Var1", all=T)
-names(Assign.df) <- c("AssignGroup", "Relinquished", "AllChanges")
-Assign.df[,2][is.na(Assign.df[,2])] <- 0
-Assign.df$Freq <- round(Assign.df[,2] / Assign.df$AllChanges, 2)
-Assign.df <- Assign.df[order(Assign.df[,2], decreasing=TRUE),]
-Assign_table <- rbind(Assign.df, data.frame(AssignGroup="", Relinquished=sum(Assign.df[,2]), AllChanges=sum(Assign.df$AllChanges), Freq=sum(Assign.df[,2])/sum(Assign.df$AllChanges)))
-Assign_table <- kable(Assign_table, align="lrrr", caption="Changes by assignment group", format='simple', row.names=F)
-rel_assign <- Assign.df$Relinquished
-names(rel_assign) <- Assign.df$AssignGroup
-all_assign <- Assign.df$AllChanges
-names(all_assign) <- Assign.df$AssignGroup
-assign_test <- pairwise.prop.test(x=rel_assign, n=all_assign)
-
-
 ### Show cause ##########
 
-show_cause <- read.csv("show_cause_filled.csv")
+show_cause <- read.csv("cleaned_data/show_cause_filled.csv")
 changes <- all_ChangeWR
 changes <- subset(changes, ChangeYear != "(2019,2020]")
 
@@ -685,86 +584,40 @@ changes$Oldest <- allQuant_Parent_all$Oldest[match(changes$Parent, allQuant_Pare
 change_parent_sum <- sum(aggregate(changes$Oldest_Qa[changes$DiminishingChange == TRUE & changes$nonconsumptive == FALSE], list(changes$Oldest[changes$DiminishingChange == TRUE & changes$nonconsumptive == FALSE]), mean)[,2])
 show_cause$Relinq_Qa <- show_cause$Qa_start_filled - show_cause$Qa_end_filled
 show_cause$RelRate <- show_cause$Relinq_Qa / show_cause$Qa_start_filled
+show_cause$RelRate <- show_cause$Relinq_Qa / show_cause$Qa_start_filled
 
+
+## Table 9 ##
 rownum <- which(show_cause$nc == "no")
-rbind(c(length(show_cause$Relinq_Qa), sum(show_cause$Qa_start_filled[rownum]), sum(show_cause$Relinq_Qa[rownum]), mean(show_cause$RelRate)),
+show_cause_table <- rbind(c(length(show_cause$Relinq_Qa), sum(show_cause$Qa_start_filled[rownum]), sum(show_cause$Relinq_Qa[rownum]), mean(show_cause$RelRate)),
       c(length(changes$Relinq_Qa[changes$DiminishingChange==TRUE]), change_parent_sum, sum(changes$Relinq_Qa[changes$nonconsumptive == FALSE]), mean(changes$RelRate, na.rm=T)))
-
+show_cause_table <- show_cause_table[,-2]
 
 purpose_types = list("IR", "DG|DM|DS", "MU", "CI", "FS", "PO")
 purpose_names <- c("Irrigation", "Domestic", "Municipal", "Commercial", "Fish", "Power")
-show_cause_by_purpose <- PurposeTypeTable_sc(purpose_types, purpose_names)
+show_cause_by_purpose <- PurposeTypeTable_sc(purpose_types, purpose_names) ## Table A.5
 
-
-person <- read.csv("C:/Users/matthew.yourek/Documents/Dissertation/water_rights_tables/new_WRTS_tables/PersonOrOrganization.csv")
+person <- read.csv("input_data_files/PersonOrOrganization.csv")
 show_cause$Owner <- person$PersonOrOrganization[match(show_cause$docid, person$WaRecId)]
 show_cause$Owner_class <- person_class$Class[match(show_cause$Owner, person_class$Person)]
 show_cause$Owner_class <- factor(show_cause$Owner_class, levels=c("Individual", "Other Company", "Irrigation District", "Water Company", "Department/Agency", "Other District", "Club/Association", "Municipality", "Irrigation Company"))
 show_cause$Owner_class[show_cause$Owner_class == "Irrigation Company"] <- "Irrigation District"
+
+## Table A.6
 owner_table <- cbind(aggregate(show_cause$Relinq_Qa, list(show_cause$Owner_class), length),
                      round(aggregate(show_cause$Relinq_Qa[show_cause$nc == "no"], list(show_cause$Owner_class[show_cause$nc == "no"]), sum)[,2], 0),
                      round(aggregate(show_cause$RelRate, list(show_cause$Owner_class), mean)[,2], 3))
 names(owner_table) <- c("OwnerType", "Count", "Relinq_Qa", "RelRate")
 
+#### Yakima Adjudication (Table 10)
 
-#### Yakima Adjudication
-
-yak <- read.csv("Yakima_adj.csv")
+yak <- read.csv("cleaned_data/Yakima_adj.csv")
 
 yak_table <- cbind(aggregate(yak$Qa_filled, list(yak$Class), length), 
       aggregate(yak[,c("Qa_filled", "Qi_filled")], list(yak$Class), function(x) sum(x, na.rm=T))[,2:3])
 
 (yak_table[2,2:4] - yak_table[1,2:4]) / yak_table[2,2:4]
 
-### Trust water rights #####
-
-donation <- grep("Don", water_rights$AssignmentGroup)
-TR <- water_rights[donation, c("WRDocID", "QaTotal", "QiTotal", "AssignmentGroup", "Stage", "DocDate")]
-del <- grep("Denied|Rejected|Withdrawn", TR$Stage)
-TR <- TR[-del,]
-date_correction <- read.csv("trust_water_date_corrections.csv", header=F)
-date_correction[,2] <- as.Date(date_correction[,2], format="%m/%d/%Y")
-row_num <- which(TR$WRDocID %in% date_correction[,1])
-TR$DocDate[row_num] <- date_correction[match(TR$WRDocID[row_num], date_correction[,1]),2]
-TR$Year <- cut(as.numeric(strftime(TR$DocDate, "%Y")), breaks=seq(from=2000,2023,by=1))
-TR$Parent <- parent_child$Parent[match(TR$WRDocID, parent_child$Child)]
-TR$DiminishingChange <- ChangeIntentFinal$DiminishingChange[match(TR$Parent, ChangeIntentFinal$Parent)]
-TR_Parent <- subset(TR, !is.na(Parent) & !is.na(DiminishingChange))
-#out <- subset(out, is.na(DocDate))
-TR <- subset(TR, as.numeric(Year) < 20)
-
-
-
-xlab <- rep(seq(from=2001, to=2019, by=1), each=1)
-counts <- aggregate(TR$WRDocID, list(TR$Year), length)
-names(counts) <- c("ChangeYear", "Donations")
-
-
-jpeg("trust_water_activity.jpg", width=3800, height=2800, units="px", res=600)
-ggplot(counts, aes(x=ChangeYear, y=Donations)) + geom_col(fill="black") +
-  plot_theme + xlab("") + ylab("Count") + ggtitle("") +
-  scale_x_discrete(label=xlab) + scale_y_continuous(expand=expansion(mult=c(0,0.05)))
-dev.off()
-
-
-
-
-
-show_cause$RelRate <- show_cause$Relinq_Qa / show_cause$Qa_start_filled
-aggregate(show_cause$RelRate, list(show_cause$Phase), mean)
-aggregate(show_cause$RelRate, list(show_cause$Phase), length)
-
-length(show_cause$docid), sum(show_cause$Qa_start_filled - show_cause$Qa_end_filled), mean(show_cause$RelRate), 
-
-################# time between document issuance and review #############
-ChangeIntentFinal$ParentDocDate <- water_rights$DocDate2[match(ChangeIntentFinal$Parent, water_rights$WRDocID)]
-ChangeIntentFinal$ParentDocDate <- as.Date(ChangeIntentFinal$ParentDocDate, "%Y-%m-%d")
-a=unique(ChangeIntentFinal[,c("WaRecId", "Parent", "ParentDocDate", "ChangeDate")])
-a$ParentPhase = ChangePhase$ParentPhase[match(a$Parent, ChangePhase$Parent)]
-a$ParentPhase2 <- ChangeIntentFinal$ParentPhase[match(a$Parent, ChangeIntentFinal$Parent)]
-a$gap <- as.numeric(a$ChangeDate - as.Date(a$ParentDocDate))
-b <- subset(a, Parent %in% post2000_parents)
-aggregate(b$gap, list(b$ParentPhase2), mean)
 
 
 

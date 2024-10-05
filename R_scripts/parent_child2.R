@@ -26,7 +26,7 @@ water_rights_cleaned <- read.csv("input_data_files/water_rights_cleaned_adj.csv"
 
 #### Create genealogy with attributes ####################################
 
-parent_genealogy <- get_genealogy_parent()
+parent_genealogy <- get_genealogy_parent() ## create genealogy (one generation per column)
 var_list <- c("events", "event_comment", "event_date", "AnnualVol_rel", "AnnualVol_raw", "AnnualVol", "purpose",
               "status", "use", "priority", "phase", "stage", "doc_NR", "comments", "assignment", "Qi", "IA", "change_intent")
 for (var in var_list) {
@@ -68,7 +68,7 @@ for (n in names(parent_genealogy)) {
 }
 
 AnnualVol[is.na(AnnualVol)] <- AnnualVol_raw[is.na(AnnualVol)]
-
+## Create a list with genealogical attributes
 genealogy.ls <- vector(length=O, mode="list")
 for (i in 1:O) {
   print(i)
@@ -85,66 +85,70 @@ names(genealogy.ls) <- original_parents
 
 #### Analyze changes by Change Intent ##################### 
 
-ChangeIntent <- read.csv("C:/Users/matthew.yourek/Documents/Dissertation/water_rights_tables/new_WRTS_tables/WaRecChangeIntent.csv")
-Process <- read.csv("C:/Users/matthew.yourek/Documents/Dissertation/water_rights_tables/new_WRTS_tables/WaterRightsTablesWaRecProcess.txt", sep="\t")
+ChangeIntent <- read.csv("input_data_files/WaRecChangeIntent.csv") ## Change intent for each child
+Process <- read.csv("input_data_files/WaterRightsTablesWaRecProcess.txt", sep="\t") ## provides crosswalk from ProcessID to WaRecID
 ChangeIntent <- merge(ChangeIntent, Process[,c("WaRecProcessId", "WaRecId")], "WaRecProcessId", all=T)
 ChangeIntent <- ChangeIntent[,c("WaRecId", "WaRecChangeIntentTypeCode")]
 ChangeIntent <- ChangeIntent[!is.na(ChangeIntent$WaRecId),]
-ChangeIntent$PrimaryNumber <- water_rights$PrimaryNumber[match(ChangeIntent$WaRecId, water_rights$WRDocID)]
+ChangeIntent$PrimaryNumber <- water_rights$PrimaryNumber[match(ChangeIntent$WaRecId, water_rights$WRDocID)] ## alpha-numeric document name 
 ChangeIntent$Qa <- water_rights_cleaned$AnnualVolumeQuantity_filled[match(ChangeIntent$WaRecId, water_rights_cleaned$WR_Doc_ID)]
 ChangeIntent$Qa_raw <- water_rights$QaTotal[match(ChangeIntent$WaRecId, water_rights$WRDocID)]
 ChangeIntent$Qa[is.na(ChangeIntent$Qa)] <- ChangeIntent$Qa_raw[is.na(ChangeIntent$Qa)]
 ChangeIntent$Parent <- parent_child$Parent[match(ChangeIntent$WaRecId, parent_child$Child)]
 a <- lapply(genealogy.ls, function(x) unique(cbind(stack(x$gen), stack(x$gen)[1,1])))
 b <- do.call(rbind.data.frame, a)
-ChangeIntent$Oldest <- b[match(ChangeIntent$WaRecId, b[,1]),3]
+ChangeIntent$Oldest <- b[match(ChangeIntent$WaRecId, b[,1]),3] # find the oldest ancestor of each child
 fill_oldest <- data.frame(WaRecId=c(6800804, 2229373), Oldest=c(6800804, 2229373))
 row_num <- which(ChangeIntent$WaRecId %in% fill_oldest$WaRecId)
 ChangeIntent$Oldest[row_num] <- fill_oldest$Oldest[match(ChangeIntent$WaRecId[row_num], fill_oldest$WaRecId)]
-nullrows <- which(is.na(ChangeIntent$Oldest))
+nullrows <- which(is.na(ChangeIntent$Oldest)) ## remove water rights without a genealogy.
 ChangeIntent <- ChangeIntent[-nullrows,]
-ChangeIntent$Parent[is.na(ChangeIntent$Parent)] <- ChangeIntent$Oldest[is.na(ChangeIntent$Parent)]
+## some children are "orphans", i.e., they don't have a parent in the system. This makes child == parent == oldest so there are no NAs.
+ChangeIntent$Parent[is.na(ChangeIntent$Parent)] <- ChangeIntent$Oldest[is.na(ChangeIntent$Parent)] 
 ChangeIntent$Phase <- water_rights$Phase[match(ChangeIntent$WaRecId, water_rights$WRDocID)]
 ChangeIntent$Parent_phase <- water_rights$Phase[match(ChangeIntent$Parent, water_rights$WRDocID)]
 ChangeIntent$Oldest_phase <- water_rights$Phase[match(ChangeIntent$Oldest, water_rights$WRDocID)]
+## get the child annual quantity
 ChangeIntent$Qa <- sapply(1:nrow(ChangeIntent), function(x) get_Qa(x, dfp=ChangeIntent$Phase, dfq=ChangeIntent$Qa)) |> unlist() |> as.numeric()
+## get the child instantaneous quantity
 ChangeIntent$Qi <- water_rights$QiTotal[match(ChangeIntent$WaRecId, water_rights$WRDocID)]
 ChangeIntent$Qi <- ChangeIntent$Qi |> strsplit(split="\\|") |> lapply(function(x)
   ifelse(all(is.na(gsub("NA",NA,x))), NA, min(as.numeric(gsub("NA",NA,x)), na.rm=T))) |> unlist()
+## get difference between phases of child
 ChangeIntent$compare_Qa <- sapply(1:nrow(ChangeIntent), function(x) get_diff0(ChangeIntent$Qa_raw[x], ChangeIntent$Phase[x]))
-ChangeIntent$Parent_Qa <- water_rights_cleaned$Parent_Qa[match(ChangeIntent$Parent, water_rights_cleaned$Parent)]
+## get parent annual quantity
+ChangeIntent$Parent_Qa <- water_rights_cleaned$Parent_Qa[match(ChangeIntent$Parent, water_rights_cleaned$Parent)] ## from cleaned quantities, if available
 ChangeIntent$Parent_Qa_raw <- water_rights$QaTotal[match(ChangeIntent$Parent, water_rights$WRDocID)]
 ChangeIntent$Parent_Qa[is.na(ChangeIntent$Parent_Qa)] <- ChangeIntent$Parent_Qa_raw[is.na(ChangeIntent$Parent_Qa)]
+## get parent annual quantity from raw data file (water_rights), parse and choose quantity from the right phase
 ChangeIntent$Parent_Qa <- sapply(1:nrow(ChangeIntent), function(x) get_Qa(x, dfp=ChangeIntent$Parent_phase, dfq=ChangeIntent$Parent_Qa)) |> unlist() |> as.numeric()
-ChangeIntent$Oldest_Qa <- water_rights_cleaned$QaTotal[match(ChangeIntent$Oldest, water_rights$WRDocID)]
+## get annual quantity of 1st-gen parent
+ChangeIntent$Oldest_Qa <- water_rights_cleaned$QaTotal[match(ChangeIntent$Oldest, water_rights$WRDocID)] 
 ChangeIntent$Oldest_Qa_raw <- water_rights$QaTotal[match(ChangeIntent$Oldest, water_rights$WRDocID)]
 ChangeIntent$Oldest_Qa[is.na(ChangeIntent$Oldest_Qa)] <- ChangeIntent$Oldest_Qa_raw[is.na(ChangeIntent$Oldest_Qa)]
 ChangeIntent$Oldest_Qa <- sapply(1:nrow(ChangeIntent), function(x) get_Qa(x, dfp=ChangeIntent$Oldest_phase, dfq=ChangeIntent$Oldest_Qa)) |> unlist() |> as.numeric()
+## get parent instantaneous quantity
 ChangeIntent$Parent_Qi <- water_rights$QiTotal[match(ChangeIntent$Parent, water_rights$WRDocID)]
 ChangeIntent$Parent_Qi <- ChangeIntent$Parent_Qi |> strsplit(split="\\|") |> lapply(function(x)
-  ifelse(all(is.na(gsub("NA",NA,x))), NA, min(as.numeric(gsub("NA",NA,x)), na.rm=T))) |> unlist()
+  ifelse(all(is.na(gsub("NA",NA,x))), NA, min(as.numeric(gsub("NA",NA,x)), na.rm=T))) |> unlist()   ## choose lowest Qi among phases
 ChangeIntent$IsDiminished <- unlist(sapply(ChangeIntent$Oldest, function(x) genealogy.ls[[as.character(x)]]$diminishment$IsDiminished))
-ChangeIntent$LastInactive <- unlist(sapply(ChangeIntent$WaRecId, function(x) last_inactive(x)))
-ChangeIntent$IsApp <- sapply(water_rights$Phase[match(ChangeIntent$WaRecId, water_rights$WRDocID)], function(x) length(grep("App", strsplit(x, "\\|")[[1]], invert=TRUE)) == 0)
-ChangeIntent$TrustDonation <- sapply(water_rights$Phase[match(ChangeIntent$WaRecId, water_rights$WRDocID)], function(x) length(grep("Donation", strsplit(x, "\\|")[[1]], invert=TRUE)) == 0)
-ChangeIntent$Relinquish <- unlist(sapply(ChangeIntent$Oldest, function(x) genealogy.ls[[as.character(x)]]$diminishment$Relinquished))
-ChangeIntent$lack_of_diligence <- unlist(sapply(ChangeIntent$Oldest, function(x) genealogy.ls[[as.character(x)]]$diminishment$lack_of_diligence))
-ChangeIntent$DiminishingChange <- unlist(sapply(1:nrow(ChangeIntent), function(x) diminishing_change0(x)))
+ChangeIntent$LastInactive <- unlist(sapply(ChangeIntent$WaRecId, function(x) last_inactive(x))) ## Is the stage "withdrawn", "rejected", "pending", "cancelled", or "denied", in which case the record will be removed
+ChangeIntent$IsApp <- sapply(water_rights$Phase[match(ChangeIntent$WaRecId, water_rights$WRDocID)], function(x) length(grep("App", strsplit(x, "\\|")[[1]], invert=TRUE)) == 0) ## Is the doc in the application phase?
+ChangeIntent$TrustDonation <- sapply(water_rights$Phase[match(ChangeIntent$WaRecId, water_rights$WRDocID)], function(x) length(grep("Donation", strsplit(x, "\\|")[[1]], invert=TRUE)) == 0) ## Is the doc trust water donation
+ChangeIntent$Relinquish <- unlist(sapply(ChangeIntent$Oldest, function(x) genealogy.ls[[as.character(x)]]$diminishment$Relinquished)) ## Is there a certificate of relinquishment?
+ChangeIntent$lack_of_diligence <- unlist(sapply(ChangeIntent$Oldest, function(x) genealogy.ls[[as.character(x)]]$diminishment$lack_of_diligence)) ## has there been lack of diligence in permitting stage?
+ChangeIntent$DiminishingChange <- unlist(sapply(1:nrow(ChangeIntent), function(x) diminishing_change0(x))) ## Did the change result in diminishment (preliminary determination)
 ChangeIntent <- ChangeIntent[order(ChangeIntent$Parent),]
 
-#a <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "ChangePartOfWR" & IsDiminished==T & LastInactive==F & IsApp==F & Parent_Qa != 90000 & Parent_Qa != 5465.52)[,-c(2,14,15,16,17)]
-
-############### Go through each change type and investigate water right documents to see if code accurately determining diminishment
+############### Go through each change type and investigate water right documents to see if code accurately determined diminishment
 
 ChangePart <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "ChangePartOfWR" & IsDiminished==T & LastInactive==F & IsApp==F)
 ChangePart <- ChangePart[order(ChangePart$Parent),]
 ChangePart$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangePart), function(x) child_quant0(x, ChangePart))) == TRUE, FALSE, ChangePart$DiminishingChange)
-#ChangePart$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangePart), function(x) other_diminish(ChangePart, x))) == TRUE, FALSE, ChangePart$DiminishingChange)
 a1 <- subset(ChangePart, DiminishingChange==TRUE)[,-c(2,12:19)]
 b1 <- subset(ChangePart, DiminishingChange==FALSE)[,-c(2,12:19)]
-
 exceptions_a1 <- c(4247910, 4677084, 4529874, 6800950, 5964055, 6800619, 6799419, 6799427, 6801437,
-ChangePart$WaRecId[which(ChangePart$Oldest == 2231784 & ChangePart$compare_Qa == 0)])
+ChangePart$WaRecId[which(ChangePart$Oldest == 2231784 & ChangePart$compare_Qa == 0)]) ## list of rights that were determined to be diminished but should be changed to not diminished
 
 ChangePart$DiminishingChange <- ifelse(ChangePart$WaRecId %in% exceptions_a1, FALSE, ChangePart$DiminishingChange) 
 row_num <- which(ChangeIntent$WaRecId %in% ChangePart$WaRecId)
@@ -154,13 +158,12 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange2),
 
 
 ChangePurpose <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "ChangePurpose" & LastInactive==F & IsApp==F & !WaRecId %in% unique(ChangePart$WaRecId))
-#ChangePurpose$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangePurpose), function(x) other_diminish(ChangePurpose, x))) == TRUE, FALSE, ChangePurpose$DiminishingChange)
 ChangePurpose$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangePurpose), function(x) child_quant0(x, ChangePurpose))) == TRUE, FALSE, ChangePurpose$DiminishingChange)
 a2 <- subset(ChangePurpose, DiminishingChange==TRUE & compare_Qa == 0)[,-c(2,12:19)]
 a2 <- a2[order(a2$Oldest),]
-
 exceptions_a2 <- c(4653520, 6256183, 4639220, 4514532, 6801056, 6801057, 4597311, 4509616, 4925019,
   ChangePurpose$WaRecId[which(ChangePurpose$Oldest == 2231784 & ChangePurpose$compare_Qa == 0)])
+
 ChangePurpose$DiminishingChange[ChangePurpose$WaRecId %in% exceptions_a2] <- FALSE 
 row_num <- which(ChangeIntent$WaRecId %in% ChangePurpose$WaRecId)
 ChangeIntent$DiminishingChange3 <- rep(NA, nrow(ChangeIntent))
@@ -169,9 +172,7 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange3),
 
 b2 <- subset(ChangePurpose, DiminishingChange==FALSE & IsDiminished==TRUE)[,-c(2,12:19)]
 b2 <- b2[order(b2$WaRecId),]
-#exceptions_b2 <- c(4314005, 4314143, 4564115, 4414495, 2087514, 2087515, 4259224, 4259239, 4242247, 4728438, 4259265, 
-#  4173438, 4242265, 4194861, 2132851, 4691861, 4653364, 4173438, 2223072, 4597311, 2214834, 4393512, 2147431, 4193779, 6800631)
-exceptions_b2 <- c(4597311)
+exceptions_b2 <- c(4597311) ## list of children in "change purpose" category with no diminishment detected by code, but there was in fact.
 
 ChangePurpose$DiminishingChange[ChangePurpose$WaRecId %in% exceptions_b2] <- TRUE
 row_num <- which(ChangeIntent$WaRecId %in% ChangePurpose$WaRecId)
@@ -180,16 +181,9 @@ ChangeIntent$DiminishingChange4[row_num] <- ChangePurpose$DiminishingChange[matc
 ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange4), ChangeIntent$DiminishingChange, ChangeIntent$DiminishingChange4)
 
 ChangePOU <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "ChangePlaceOfUse" & LastInactive==F & IsApp==F & !WaRecId %in% unique(c(ChangePart$WaRecId, ChangePurpose$WaRecId)))
-#ChangePOU$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangePOU), function(x) other_diminish(ChangePOU, x))) == TRUE, FALSE, ChangePOU$DiminishingChange)
 ChangePOU$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangePOU), function(x) child_quant0(x, ChangePOU))) == TRUE, FALSE, ChangePOU$DiminishingChange)
-
 b3 <- subset(ChangePOU, DiminishingChange==FALSE & (compare_Qa < 0 | IsDiminished == TRUE))[,-c(2,15,16,17,18,19,21,22)]
 b3 <- b3[order(b3$Oldest),]
-
-#exceptions_b3 <- c(2032453, 2075604, 2032454, 4148796, 4310120, 4502477, 2084869, 4424669, 6801781, 6802585, 	2144955, 2087215, 
-#                 4210364, 4670122, 6007906, 4226999, 6798798, 6663345, 4159475, 4688925, 4663973, 4711118, 2141313, 4469398, 4234625, 2089073,
-#                 4731485, 5802446, 2142172, 4737419, 4556527, 5685539, 6270681, 4686796, 4183207, 6800634, 4183187, 6282678, 4193789, 4199804, 4199855, 6678472)
-
 exceptions_b3 <- c(2032454, 4737419, 4226999, 4556527, 4193789)
 
 ChangePOU$DiminishingChange[ChangePOU$WaRecId %in% exceptions_b3] <- TRUE
@@ -200,8 +194,6 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange5),
 
 a3 <- subset(ChangePOU, DiminishingChange==TRUE & compare_Qa==0)[,-c(2,15,16,17,18,19,21,22)]
 a3 <- a3[order(a3$WaRecId),]
-
-#exceptions_a3 <- c(5003182, 2089798, 4237638, 5885522,5885532, 2089073, 6800634, 5644145, 5724147, 4702567)
 exceptions_a3 <- c(5003182, 4237638)
 ChangePOU$DiminishingChange[ChangePOU$WaRecId %in% exceptions_a3] <- FALSE
 row_num <- which(ChangeIntent$WaRecId %in% ChangePOU$WaRecId)
@@ -211,10 +203,8 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange6),
 
 ChangeSource <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "ChangeSource" & LastInactive==F & IsApp==F & !WaRecId %in% unique(c(ChangePart$WaRecId, ChangePurpose$WaRecId, ChangePOU$WaRecId)))
 ChangeSource$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangeSource), function(x) child_quant0(x, ChangeSource))) == TRUE, FALSE, ChangeSource$DiminishingChange)
-
 b4 <- subset(ChangeSource, DiminishingChange==FALSE & (compare_Qa < 0 | IsDiminished == TRUE))
 b4 <- b4[order(b4$Oldest),c("WaRecId", "Qa", "Qa_raw", "Parent", "Oldest", "Phase", "Parent_phase", "Qi", "compare_Qa", "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "IsDiminished", "DiminishingChange")]
-
 exceptions_b4 <- c(2086893, 4231464, 4224395, 4231478, 4687994, 4251181, 4245937, 4688040, 4548321, 4193244, 4192443, 4192986)
 ChangeSource$DiminishingChange[ChangeSource$WaRecId %in% exceptions_b4] <- TRUE
 row_num <- which(ChangeIntent$WaRecId %in% ChangeSource$WaRecId)
@@ -233,10 +223,8 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange8),
 
 AddSource <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "AddSource" & LastInactive==F & IsApp==F & !WaRecId %in% unique(c(ChangePart$WaRecId, ChangePurpose$WaRecId, ChangePOU$WaRecId, ChangeSource$WaRecId)))
 AddSource$DiminishingChange <- ifelse(unlist(sapply(1:nrow(AddSource), function(x) child_quant0(x, AddSource))) == TRUE, FALSE, AddSource$DiminishingChange)
-
 b5 <- subset(AddSource, DiminishingChange==FALSE & (compare_Qa < 0 | IsDiminished == TRUE))
 b5 <- b5[order(b5$Oldest),c("WaRecId", "Qa", "Qa_raw", "Parent", "Oldest", "Phase", "Parent_phase", "Qi", "compare_Qa", "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "IsDiminished", "DiminishingChange")]
-
 exceptions_b5 <- c(2145642, 5117067, 5117100, 4249642, 4259487)
 AddSource$DiminishingChange[AddSource$WaRecId %in% exceptions_b5] <- TRUE
 row_num <- which(ChangeIntent$WaRecId %in% AddSource$WaRecId)
@@ -244,10 +232,8 @@ ChangeIntent$DiminishingChange9 <- rep(NA, nrow(ChangeIntent))
 ChangeIntent$DiminishingChange9[row_num] <- AddSource$DiminishingChange[match(ChangeIntent$WaRecId[row_num], AddSource$WaRecId)]
 ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange9), ChangeIntent$DiminishingChange, ChangeIntent$DiminishingChange9)
 
-
 a5 <- subset(AddSource, DiminishingChange==TRUE & compare_Qa == 0)
 a5 <- a5[order(a5$Oldest),c("WaRecId", "Qa", "Qa_raw", "Parent", "Oldest", "Phase", "Parent_phase", "Qi", "compare_Qa", "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "IsDiminished", "DiminishingChange")]
-
 exceptions_a5 <- c(4589980, 4680094, 4600116, 4600129, 6802235)
 AddSource$DiminishingChange[AddSource$WaRecId %in% exceptions_a5] <- FALSE
 row_num <- which(ChangeIntent$WaRecId %in% AddSource$WaRecId)
@@ -257,10 +243,8 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange10)
 
 AddPurpose <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "AddPurpose" & LastInactive==F & IsApp==F & !WaRecId %in% unique(c(ChangePart$WaRecId, ChangePurpose$WaRecId, ChangePOU$WaRecId, ChangeSource$WaRecId, AddSource$WaRecId)))
 AddPurpose$DiminishingChange <- ifelse(unlist(sapply(1:nrow(AddPurpose), function(x) child_quant0(x, AddPurpose))) == TRUE, FALSE, AddPurpose$DiminishingChange)
-
 b6 <- subset(AddPurpose, DiminishingChange==FALSE & (compare_Qa < 0 | IsDiminished == TRUE))
 b6 <- b6[order(b6$Oldest),c("WaRecId", "Qa", "Qa_raw", "Parent", "Oldest", "Phase", "Parent_phase", "Qi", "compare_Qa", "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "IsDiminished", "DiminishingChange")]
-
 exceptions_b6 <- 4259518
 AddPurpose$DiminishingChange[AddPurpose$WaRecId %in% exceptions_b6] <- TRUE
 row_num <- which(ChangeIntent$WaRecId %in% AddPurpose$WaRecId)
@@ -270,7 +254,6 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange11)
 
 a6 <- subset(AddPurpose, DiminishingChange==TRUE & compare_Qa == 0)
 a6 <- a6[order(a6$Oldest),c("WaRecId", "Qa", "Qa_raw", "Parent", "Oldest", "Phase", "Parent_phase", "Qi", "compare_Qa", "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "IsDiminished", "DiminishingChange")]
-
 exceptions_a6 <- c(4230962, 4413352, 4424522)
 AddPurpose$DiminishingChange[AddPurpose$WaRecId %in% exceptions_a6] <- FALSE
 row_num <- which(ChangeIntent$WaRecId %in% AddPurpose$WaRecId)
@@ -280,7 +263,6 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange12)
 
 AddIrrA <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "AddIrrigatedArea" & LastInactive==F & IsApp==F & !WaRecId %in% unique(c(ChangePart$WaRecId, ChangePurpose$WaRecId, ChangePOU$WaRecId, ChangeSource$WaRecId, AddSource$WaRecId, AddPurpose$WaRecId)))
 AddIrrA$DiminishingChange <- ifelse(unlist(sapply(1:nrow(AddIrrA), function(x) child_quant0(x, AddIrrA))) == TRUE, FALSE, AddIrrA$DiminishingChange)
-
 exceptions_a7 <- 6800959
 AddIrrA$DiminishingChange[AddIrrA$WaRecId %in% exceptions_a7] <- FALSE
 row_num <- which(ChangeIntent$WaRecId %in% AddIrrA$WaRecId)
@@ -290,10 +272,8 @@ ChangeIntent$DiminishingChange <- ifelse(is.na(ChangeIntent$DiminishingChange13)
 
 ChangeOther <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "ChangeOther" & LastInactive==F & IsApp==F & !WaRecId %in% unique(c(ChangePart$WaRecId, ChangePurpose$WaRecId, ChangePOU$WaRecId, ChangeSource$WaRecId, AddSource$WaRecId, AddPurpose$WaRecId, AddIrrA$WaRecId)))
 ChangeOther$DiminishingChange <- ifelse(unlist(sapply(1:nrow(ChangeOther), function(x) child_quant0(x, ChangeOther))) == TRUE, FALSE, ChangeOther$DiminishingChange)
-
 b8 <- subset(ChangeOther, DiminishingChange==FALSE & (compare_Qa < 0 | IsDiminished == TRUE))
 b8 <- b8[order(b8$Oldest),c("WaRecId", "Qa", "Qa_raw", "Parent", "Oldest", "Phase", "Parent_phase", "Qi", "compare_Qa", "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "IsDiminished", "DiminishingChange")]
-
 exceptions_b8 <- c(2075134, 2085094, 2087335, 2087336, 4677836)
 ChangeOther$DiminishingChange[ChangeOther$WaRecId %in% exceptions_b8] <- TRUE
 row_num <- which(ChangeIntent$WaRecId %in% ChangeOther$WaRecId)
@@ -356,6 +336,7 @@ Intertie <- subset(ChangeIntent, WaRecChangeIntentTypeCode == "Intertie" & LastI
   WRAOther$WaRecId, WRADonation$WaRecId, WRALease$WaRecId, WRAPurchase$WaRecId, Drought$WaRecId)))
 
 ########### Remove duplicates created when a parent splits into multiple children #######
+
 ChangeIntent_backup <- ChangeIntent
 ChangeIntent <- ChangeIntent[!is.na(ChangeIntent$WaRecChangeIntentTypeCode),]
 ChangeIntent$Event <- water_rights$EventType[match(ChangeIntent$WaRecId, water_rights$WRDocID)]
@@ -366,42 +347,23 @@ ChangeIntent$AppDate <- paste(ChangeIntent$Event, ChangeIntent$EventDate, sep="|
   unlist()
 ChangeIntent$Assignment <- water_rights$AssignmentGroup[match(ChangeIntent$WaRecId, water_rights$WRDocID)]
 ChangeIntent$Stage <- water_rights$Stage[match(ChangeIntent$WaRecId, water_rights$WRDocID)]
+## Remove seasonal changes, temporary drought authorizations, trust water donations, and water placed temporarily in a water bank
 ChangeIntent <- ChangeIntent[grep("Seasonal Changes|Drought|TW Acquisition - Temporary Don|TW Acquisition - Permanent Don|Banking", ChangeIntent$Assignment, invert=T),]
-#ChangeIntent <- ChangeIntent[-which(ChangeIntent$WaRecChangeIntentTypeCode %in% c("SeasonalOrTemporary", "WRADonation", "Drought")),]
-ChangeIntent$IsSplitP <- unlist(sapply(ChangeIntent$ParentEvent, function(x) length(grep("Split", x))>0))
-ChangeIntent$IsSplitC <- unlist(sapply(ChangeIntent$Event, function(x) length(grep("Split", x))>0))
+ChangeIntent$IsSplitP <- unlist(sapply(ChangeIntent$ParentEvent, function(x) length(grep("Split", x))>0)) ## Did the parent go through an administrative split?
+ChangeIntent$IsSplitC <- unlist(sapply(ChangeIntent$Event, function(x) length(grep("Split", x))>0)) ## was the child split?
 ChangeIntent$IsSplitC[ChangeIntent$Stage == "Split"] <- TRUE
 ChangeIntent$IsSplit <- ifelse(ChangeIntent$IsSplitC == TRUE | ChangeIntent$IsSplitP == TRUE, TRUE, FALSE)
 
 ChangeIntent <- ChangeIntent[-which(ChangeIntent$LastInactive == TRUE | ChangeIntent$IsApp == TRUE),]
-ChangeIntent <- ChangeIntent[-which(ChangeIntent$Phase %in% c("SupersedingPermit", "SupersedingCertificate", "AdjudicatedCertificate", "SupersedingQuincyBasinPermit", "Certificate", "Permit")),]
+## Remove superseding documents (these are a form of duplicate, in that they are the child in its mature phase and not a separate change)
+ChangeIntent <- ChangeIntent[-which(ChangeIntent$Phase %in% c("SupersedingPermit", "SupersedingCertificate", "AdjudicatedCertificate", "SupersedingQuincyBasinPermit", "Certificate", "Permit", "SupersedingCertificateOfChange")),]
 ChangeIntent <- ChangeIntent[-grep("SupersedingCertificate", ChangeIntent$Phase),]
 
+## Find duplicates ####
 
 dup_ind <- which(grepl("\\([A-Z]\\)$", ChangeIntent$PrimaryNumber) | ChangeIntent$IsSplitC == TRUE)
 ChangeIntent$DupInd <- grepl("\\([A-Z][0-9]*\\)$", ChangeIntent$PrimaryNumber) | ChangeIntent$IsSplitC == TRUE
 ChangeIntent$DupInd2 <- grepl("\\([A-Z][0-9]*\\)$|@[0-9][a-z]", ChangeIntent$PrimaryNumber)
-
-
-#ChangeIntent_nodup <- NULL
-#for (p in unique(ChangeIntent$Parent)) {
-#  df <- subset(ChangeIntent, Parent == p | WaRecId == p)[c("WaRecId", "PrimaryNumber", "Parent", "WaRecChangeIntentTypeCode", "AppDate")]
-#  if (length(unique(df$WaRecId)) > 1) {
-#      df2 <- NULL
-#      for (d in unique(df$AppDate)) {
-#        if (is.na(d)) { df1 <- subset(df, is.na)}
-#        df1 <- subset(df, AppDate == d)
-#        df1 <- df1[df1$WaRecId == names(table(df1$WaRecId))[which(table(df1$WaRecId) == max(table(df1$WaRecId)))],]
-#        df2 <- rbind(df2, df1)
-#      }
-#  } else {
-#    df2 <- df
-#  }
-#  ChangeIntent_nodup <- rbind(ChangeIntent_nodup, df2)
-#}
-
-
-#duplicates1 <- ChangeIntent[dup_ind,]
 
 dup.df <- NULL
 for (p in 1:length(unique(ChangeIntent$Parent))) {
@@ -444,107 +406,48 @@ for (p in 1:length(unique(ChangeIntent$Parent))) {
     } else {
       df$IsDuplicated <- ifelse(is.na(df$AppDate) & (df$DupInd2 == TRUE | df$IsSplitC == TRUE | df$IsSplitP == TRUE), TRUE, FALSE)
     }
-    #df <- subset(df, Parent == parent)
-    #df2 <- NULL
-    #for (d in 1:length(unique(df$AppDate))) {
-    #  date <- unique(df$AppDate)[d]
-    #  if (is.na(date)) { df1 <- subset(df, is.na(AppDate))} else { df1 <- subset(df, AppDate == date)}
-    #  counts_date <- table(df1$WaRecId)
-    #  df1$IsDuplicated <- ifelse(df1$WaRecId == names(which(counts_date == max(counts_date)))[1], FALSE, TRUE)
-    #  df2 <- rbind(df2, df1)
-    #}
-    #df <- df2
   }
   dup.df <- rbind(dup.df, df) 
 }
-  
-  #duplicate_F <- c(4237857, 2032586, 2032599)
-  #dup.df$IsDuplicated[dup.df$WaRecId %in% duplicate_F] <- FALSE
-  
-  #to_duplicate_F <- c(4306701, 4306724, 4147650, 4147660, 4147539, 4147670, 2087699, 4530208, 4530717, 4530771, 4530797, 4531454, 2033017,
-  #                    2032809, 2032808, 2033021, 4702331, 4702227, 2087689, 2087736, 2032467, 2032468, 2032781, 2032578, 2032582, 2032585,
-  #                    2032588, 2032590, 2032804, 2032805, 2032812, 2032830, 2032831, 2032833, 2032871, 2032875, 2032973, 2032974, 2032976,
-  #                    2032977, 2032978, 2032979, 2032980, 2032981, 2033020, 2033022, 2033024, 2085073, 2085075, 2085143, 2085144, 2087520,
-  #                    2087522, 2087523, 5080441, 4480755, 4252979, 4200689, 2145446, 4241278, 4251822)
-  #to_duplicate_T <- c(6048330, 4655640, 6802731, 6802401, 4289217, 4480697, 5801870, 4640112)
-  dup.df <- dup.df[order(dup.df$Oldest),]
-  to_duplicate_F <- c(4702227, 4702331, 5080441, 4480755, 4252979, 4241278, 4251822, 4702149, 4673004, 4673019, 4681582, 4681608, 
-                      4672985, 6564673, 5846645, 6280198, 6801697, 4554825, 6801581, 4540129, 4234013, 6801829, 4223239, 4696974, 4684564,
-                      4925302, 4663973, 4295637, 4465213, 4485166, 4491508, 4492871, 4505054, 4680847, 4719470, 4847982, 5803316, 4485290,
-                      6274552, 6274540, 4190754, 4175590, 4185179, 4156809, 2145614, 4199524, 4228109, 6263958, 6463203, 6463217, 6571493)
-  to_duplicate_T <- c(6325376, 6802301, 4252971, 4683851, 5080117, 4320949, 6007887, 5644838, 6007864, 5042938, 5681815, 6281045, 2214814, 6129072,
-                      5282086, 4706458, 4673163, 5281967, 5281989, 5281950, 4273094, 4332894, 4540217, 6464282, 4696974, 5080441, 4480697, 6359659,
-                      6359709, 6359684, 6359635, 6007906, 4228094, 5601720, 4475278, 2145086, 4234625, 4626950, 2154006, 2206111, 4273863, 2223129,
-                      2147431, 2220550, 2223128, 2221006, 4175279, 2221372, 4442700, unique(ChangeIntent$WaRecId[ChangeIntent$Oldest == 2231784 & ChangeIntent$Phase == "CertificateOfChange"]),
-                      6129080, 2271815, 4650164, 6270988, 5280223, 2271968, 6168085, 4156380, 4686610, 4733457, 2087507, 4480093, 4480122, 6260533, 6325398, 6325422, 6325446, 
-                      6325479, 2206351, 4264802, 4306734, 4306759, 6800904, 4656667, 4224550, 2145226, 4200689, 4175526, 4167432, 2129302, 2147246, 	
-                      4162216, 6464293, 2144973, 6007743, 4496497, 4496441, 6007743, 2145390, 4638723, 6674893, 6281020, 4590916, 4925302, 5767407, 4203844, 4203959, 6047840, 
-                      2087231, 4173404, 4173365, 4166072, 4234366, 4681929, 4194431, 4192193, 2032401, 2085111, 2280129, 4189643, 4199892, 4223642,
-                      4264216, 4316289, 4341401, 4405804, 4441064, 4441561, 4480036, 4480065, 4480080, 4480135, 4480832, 4484055, 4484113, 4532798,
-                      4554733, 4599487, 4644878, 5078919, 5441741, 5563978, 6717931, 6780868, 6780917, 6797069, 6799431, 6799432, 6799890, 5405144,
-                      4701004, 6801422, 4845234, 4847452, 4582123, 6801494, 2144949, 4266787, 4469608, 6129654, 6799588, 6801494, 6801642, 5403775,
-                      2086993, 2139425, 4539077, 5404384, 5404397, 5443374, 5885522, 5885532, 6801293, 6801383, 5644470, 5767245, 6801659, 4316273,
-                      4169540, 4170904, 2075338, 2084804)
 
-  dup.df$IsDuplicated[dup.df$WaRecId %in% to_duplicate_F] <- FALSE
-  dup.df$IsDuplicated[dup.df$WaRecId %in% to_duplicate_T] <- TRUE
-  dup.df <- unique(dup.df)
-  
-  a = unique(dup.df[,1:9])
-  which(table(a$WaRecId) != table(dup.df$WaRecId))
-  dup_update <- dup.df[dup.df$Oldest %in% dup.df$Oldest[dup.df$WaRecId %in% names(which(table(a$WaRecId) != table(dup.df$WaRecId)))],] 
+dup.df <- dup.df[order(dup.df$Oldest),]
+## After checking, the coded desicion rules sometime incorrectly identified duplicates. Whether a change is a duplicate is adjusted as follows:
+to_duplicate_F <- c(4702227, 4702331, 5080441, 4480755, 4252979, 4241278, 4251822, 4702149, 4673004, 4673019, 4681582, 4681608, 
+                    4672985, 6564673, 5846645, 6280198, 6801697, 4554825, 6801581, 4540129, 4234013, 6801829, 4223239, 4696974, 4684564,
+                    4925302, 4663973, 4295637, 4465213, 4485166, 4491508, 4492871, 4505054, 4680847, 4719470, 4847982, 5803316, 4485290,
+                    6274552, 6274540, 4190754, 4175590, 4185179, 4156809, 2145614, 4199524, 4228109, 6263958, 6463203, 6463217, 6571493)
+to_duplicate_T <- c(6325376, 6802301, 4252971, 4683851, 5080117, 4320949, 6007887, 5644838, 6007864, 5042938, 5681815, 6281045, 2214814, 6129072,
+                    5282086, 4706458, 4673163, 5281967, 5281989, 5281950, 4273094, 4332894, 4540217, 6464282, 4696974, 5080441, 4480697, 6359659,
+                    6359709, 6359684, 6359635, 6007906, 4228094, 5601720, 4475278, 2145086, 4234625, 4626950, 2154006, 2206111, 4273863, 2223129,
+                    2147431, 2220550, 2223128, 2221006, 4175279, 2221372, 4442700, unique(ChangeIntent$WaRecId[ChangeIntent$Oldest == 2231784 & ChangeIntent$Phase == "CertificateOfChange"]),
+                    6129080, 2271815, 4650164, 6270988, 5280223, 2271968, 6168085, 4156380, 4686610, 4733457, 2087507, 4480093, 4480122, 6260533, 6325398, 6325422, 6325446, 
+                    6325479, 2206351, 4264802, 4306734, 4306759, 6800904, 4656667, 4224550, 2145226, 4200689, 4175526, 4167432, 2129302, 2147246, 	
+                    4162216, 6464293, 2144973, 6007743, 4496497, 4496441, 6007743, 2145390, 4638723, 6674893, 6281020, 4590916, 4925302, 5767407, 4203844, 4203959, 6047840, 
+                    2087231, 4173404, 4173365, 4166072, 4234366, 4681929, 4194431, 4192193, 2032401, 2085111, 2280129, 4189643, 4199892, 4223642,
+                    4264216, 4316289, 4341401, 4405804, 4441064, 4441561, 4480036, 4480065, 4480080, 4480135, 4480832, 4484055, 4484113, 4532798,
+                    4554733, 4599487, 4644878, 5078919, 5441741, 5563978, 6717931, 6780868, 6780917, 6797069, 6799431, 6799432, 6799890, 5405144,
+                    4701004, 6801422, 4845234, 4847452, 4582123, 6801494, 2144949, 4266787, 4469608, 6129654, 6799588, 6801494, 6801642, 5403775,
+                    2086993, 2139425, 4539077, 5404384, 5404397, 5443374, 5885522, 5885532, 6801293, 6801383, 5644470, 5767245, 6801659, 4316273,
+                    4169540, 4170904, 2075338, 2084804)
 
-#duplicates1 <- subset(duplicates1, LastInactive==FALSE & IsApp==FALSE)[c("WaRecId", "PrimaryNumber", "WaRecChangeIntentTypeCode", "Parent", "Oldest", "Qa_raw", "DiminishingChange")]
-#duplicates1 <- duplicates1[order(duplicates1$Parent),]
-#duplicates <- subset(duplicates1, !WaRecChangeIntentTypeCode %in% c("ChangePartOfWR", "ChangeEntireWR"))
-#duplicates1$IsDuplicated <- duplicated(duplicates1[,c("Parent", "WaRecChangeIntentTypeCode")])
-#split_parent <- duplicates1$WaRecId[which(duplicates1$WaRecId %in% duplicates1$Parent)]
-#duplicates1$IsDuplicated[duplicates1$Parent %in% split_parent] <- TRUE
-#duplicates1$IsDuplicated[duplicates1$WaRecId %in% split_parent] <- FALSE
-
-#super <- ChangeIntent[which(ChangeIntent$Phase %in% c("SupersedingPermit", "SupersedingCertificate", "AdjudicatedCertificate")),c("WaRecId", "Qa_raw", "WaRecChangeIntentTypeCode", "PrimaryNumber", "Parent", "Parent_Qa_raw", "Oldest", "Phase")]
-#super$ParentChangeType <- ChangeIntent$WaRecChangeIntentTypeCode[match(super$Parent, ChangeIntent$WaRecId)]
-
-
-
-#exceptions <- c(2074433, 2080039, 2087129, 2134475, 2134896, 2136712, 2138769, 2139214, 2139573, 2141343, 2208254, 2209787, 2215838, 2221186, 2221738, 2277787,
- #               2143094)
-
-#duplicates1$IsDuplicated[duplicates1$Parent %in% exceptions] <- FALSE
-
-#other_duplicates <- c(4169900, 6800202, 5685551, 4582123, 4479389, 4480022, 4480093, 4285485, 4252971, 4469414, 4323627, 4264802)
-#duplicates1$IsDuplicated[duplicates1$WaRecId %in% other_duplicates] <- TRUE
-#more_duplicates <- c(4330624, 4169266, 4173404, 4173365, 4259487, 6665905, 5356325, 6665892, 5356310, 4679141,
-#                     4712040, 6799306, 5966914, 5921331, 6091113, 6557213, 6005890, 6367963, 6090148, 4710236,
-#                     6126087, 5966879, 6166313, 6009033, 6164594, 4169913, 6800904, 6800904, 2271815, 5043062, 
-#                     5684349, 6802480, 4245993, 4680094, 4723089, 4582585, 4485839, 6406909, 4240232, 6802830,
-#                     2154006, 6802830, 6802364, 6801172, 6802302, 6274552, 6007887, 6802591, 5279431, 5279425,
-#                     5767959, 5767966, 5001124, 5042891, 5043127, 5600772, 5600777, 5600782, 4306734, 4306759)
-#duplicates1$IsDuplicated[duplicates1$WaRecId %in% more_duplicates] <- TRUE
-
-#ChangeIntent$IsDuplicate <- duplicates1$IsDuplicated[match(paste(ChangeIntent$WaRecId, ChangeIntent$WaRecChangeIntentTypeCode), paste(duplicates1$WaRecId, duplicates1$WaRecChangeIntentTypeCode))]
-#ChangeIntent$IsDuplicate <- duplicates1$IsDuplicated
-#ChangeIntent$IsDuplicate[is.na(ChangeIntent$IsDuplicate)] <- FALSE
-#ChangeIntent$IsDuplicate[ChangeIntent$WaRecId %in% c(more_duplicates, unique(super$WaRecId))] <- TRUE
-
-
-select_cols <- c("WaRecId", "WaRecChangeIntentTypeCode", "PrimaryNumber", "Phase", "Qa", "Qa_raw", "Qi", "Parent", "Oldest", "compare_Qa", 
-  "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "Oldest_Qa", "Oldest_Qa_raw", "IsDiminished", "DiminishingChange", "Event", "IsDuplicate")
-#ChangeIntent2 <- ChangeIntent[-which(ChangeIntent$LastInactive == TRUE | ChangeIntent$IsApp == TRUE | ChangeIntent$IsDuplicate == TRUE), select_cols]
-#ChangeIntent2$EventDate <- water_rights$EventDoneDate[match(ChangeIntent2$WaRecId, water_rights$WRDocID)]
-
-ChangeIntent$ChangeDate <- sapply(1:nrow(ChangeIntent), function(x) ChangeDate(input_df=ChangeIntent, event_colname="Event", date_colname="EventDate", x))
-#ChangeIntent2$ChangeDate <- ChangeIntent2$ChangeDateFinal
-ChangeIntent$ChangeDate <- as.Date(ChangeIntent$ChangeDate)
+dup.df$IsDuplicated[dup.df$WaRecId %in% to_duplicate_F] <- FALSE
+dup.df$IsDuplicated[dup.df$WaRecId %in% to_duplicate_T] <- TRUE
+dup.df <- unique(dup.df)
 ChangeIntent$IsDuplicate <- dup.df$IsDuplicated[match(ChangeIntent$WaRecId, dup.df$WaRecId)]
+
+## Find the date of change authorization (date change ROE was issued, if available)
+ChangeIntent$ChangeDate <- sapply(1:nrow(ChangeIntent), function(x) ChangeDate(input_df=ChangeIntent, event_colname="Event", date_colname="EventDate", x))
+ChangeIntent$ChangeDate <- as.Date(ChangeIntent$ChangeDate)
 ChangeIntent$WaRecChangeIntentTypeCode <- ifelse(ChangeIntent$IsDuplicate == TRUE, NA, ChangeIntent$WaRecChangeIntentTypeCode)
 
-
-ChangeIntentFinal <- ChangeIntent[which(ChangeIntent$IsDuplicate == FALSE),c(select_cols, "EventDate", "ChangeDate")]
+select_cols <- c("WaRecId", "WaRecChangeIntentTypeCode", "PrimaryNumber", "Phase", "Qa", "Qa_raw", "Qi", "Parent", "Oldest", "compare_Qa", 
+                 "Parent_Qa", "Parent_Qa_raw", "Parent_Qi", "Oldest_Qa", "Oldest_Qa_raw", "IsDiminished", "DiminishingChange", "Event", "IsDuplicate")
+ChangeIntentFinal <- ChangeIntent[which(ChangeIntent$IsDuplicate == FALSE),c(select_cols, "EventDate", "ChangeDate")] ## start a new data frame based on ChangeIntent that has all duplicates removed
 ChangeIntentFinal$WRIA <- water_rights$WRIA_NM[match(ChangeIntentFinal$WaRecId, water_rights$WRDocID)]
-change_docid <- c(2134788, 2141313)
+change_docid <- c(2134788, 2141313) ## Change to no diminishment
 ChangeIntentFinal$DiminishingChange[which(ChangeIntentFinal$WaRecId %in% change_docid)] <- FALSE
-### Additionally, some sequential changes (@) need to be converted to no diminishment because the diminishment occured in a previous change
+### Additionally, some sequential changes (@) need to be converted to no diminishment because the diminishment occurred in a previous change
+## Whenever a water right was manually checked and was determined that no diminishment had taken place, it was added here for good measure.
 to_diminishing_F <- c(4634837, 5200512, 6801090, 6045033, 6801271, 6799219, 6511030, 6800497, 6801191, 6796136, 
                       4669128, 5042891, 4413444, 4157414, 4719790, 4621183, 5115658, 5923541, 5355765,
                       6800541, 6627062, 6800167, 6802229, 6007847, 4550494, 4645567, 4691197, 6800788, 5566239,
@@ -636,7 +539,7 @@ to_diminishing_F <- c(4634837, 5200512, 6801090, 6045033, 6801271, 6799219, 6511
                       4845661, 6219313, 2086978, 2144997, 2145007, 2145019, 2145109, 2145132, 2145145, 6500607,
                       6624974, 6801156, 6802474, 4541298, 2145066, 4170192, 4182552, 4190325, 4199524, 4540129,
                       4156809, 2088864, 2087259, 6802393)
-
+## Whenever a water right was manually checked and was determined diminishment had taken place, it was added here
 to_diminishing_T <- c(6203568, 6203471, 6203537, 6203504, 6203604, 6801760, 6799490, 6801574, 4245023, 4169820, 
                       4426749, 6801395, 4161947, 4203786, 4148842, 5600787, 6579322, 5278930, 5600885, 6045056, 
                       6506845, 4643178, 2087326, 6799941, 6579340, 4722227, 4169820, 6774930, 2088924, 2285735,
@@ -687,13 +590,17 @@ to_diminishing_T <- c(6203568, 6203471, 6203537, 6203504, 6203604, 6801760, 6799
                       2087315, 4709390, 4304929, 4180695, 4185859, 4228121, 4442716, 4329809, 4237612, 2085234,
                       2089197, 4157967, 4164305, 4168352, 4168359, 4169628, 5603723, 6360146, 6125357, 6571493,
                       2271863, 4202658, 4191940, 4180695)
+## Adjust diminishment status accordingly
 ChangeIntentFinal$DiminishingChange[which(ChangeIntentFinal$WaRecId %in% to_diminishing_F)] <- FALSE
 ChangeIntentFinal$DiminishingChange[which(ChangeIntentFinal$WaRecId %in% to_diminishing_T)] <- TRUE
 delete <- c(4209133, 4209354, 2145902, 2147405, 2087741, 2145442) ## applications replaced by ammended applications
 ChangeIntentFinal <- ChangeIntentFinal[-which(ChangeIntentFinal$WaRecId %in% delete),]
+## Calculate the diminishment quantity
 ChangeIntentFinal$ChildQ <- sapply(1:nrow(ChangeIntentFinal), function(x) child_quantQ(x, ChangeIntentFinal))
 print("Done ChildQ")
 
+
+## Make adjustment of diminishment quanities
 docs=c(4686645, 4686732, 4230341, 4598053, 2084647, 4496991, 6045056, 4148751, 2145221,           #1
        4292342, 2223119, 4631401, 4622671, 2032454, 2087694, 4159603, 2129441, 4485257, 2089070,  #2
        2145672, 4647660, 2145803, 4200329, 4515105, 4515351, 2087153, 2145801, 4174126, 2075171,  #3
@@ -952,8 +859,9 @@ noQuantParent <- c(120, 279, 231, 2295.6, 140, 10427, 9492, 356, 67, 125.2,     
 adj_childQ <- data.frame(docid=docs, newQ=Qs)
 adj_childQ <- adj_childQ[-which(docs %in% c(2087688, 2087689, 2087691, 4199235))]
 adj_parent <- data.frame(docid=docs2, newQ=noQuantParent)
-delete <- c(6801395, 6168104, 4673140, 2075387, 2075339, 4193937, 4192455, 4174304, 4174558, 4247910, 2032416, 2234525, 2139378, 2141313, 6800725, 6800729, 6800768, 6800786,
-            6800790, 6800740, 4656298, 6203471, 6203537)
+delete <- c(6801395, 6168104, 4673140, 2075387, 2075339, 4193937, 4192455, 4174304, 4174558, 4247910, 
+            2032416, 2234525, 2139378, 2141313, 6800725, 6800729, 6800768, 6800786, 6800790, 6800740, 
+            4656298, 6203471, 6203537)
 docid <- c(2129533, 2143194, 4923142, 2271858, 4212257)
 newParent <- c(2139562, 2139562, 2132751, 2271857, 2078494)
 assign_new_parent <- data.frame(docid=docid, newParent=newParent)
@@ -966,7 +874,8 @@ ChangeIntentFinal <- ChangeIntentFinal[-which(ChangeIntentFinal$Oldest %in% exce
 ChangeIntentFinal$Comment <- water_rights$Comment[match(ChangeIntentFinal$WaRecId, water_rights$WRDocID)]
 ChangeIntentFinal$IsYakima <- grepl("Yakima River Basin Adjudication", ChangeIntentFinal$Comment)
 ChangeIntentFinal$Assignment <- water_rights$AssignmentGroup[match(ChangeIntentFinal$WaRecId, water_rights$WRDocID)]
-ChangeIntentFinal <- ChangeIntentFinal[grep("Seasonal Changes|Drought|TW Acquisition - Temporary Don|TW Acquisition - Permananet Don|Water Banking", ChangeIntentFinal$Assignment, invert=T),]
+## Water rights in the "Temporary Other" Assignment group. We want to keep some and exclude others, based on whether a full
+## extent and validity review was conducted
 donations <- c(2087712, 2087284, 6800797, 6801719, 6801722, 4157578, 6129685, 6129702, 4192211)
 longterm_lease <- c(4735430, 4265740, 4634882, 6007954, 2087709, 5404676, 2087126, 4726863, 4727047, 5523398,
                     4727012, 4726910, 4726775, 4726815, 4199804, 4199855, 4652940, 5160277, 6269182, 4726796, 
@@ -995,9 +904,11 @@ all_trust_temp <- c(all_trust_temp, extra_temp)
 all_seasonal <- c(6801293, 4326388, 2144974, 2089198, 2095245, 2089197, 4845661, 4228109, 4658705, 2089199,
                   2145859, 2089200, 2145933, 2140693, 2140957, 2142016, 2141586, 2139425, 4154402, 2285532,
                   4711068, 4273104, 5443374, 5885522, 5885532, 4189540, 2145066, 2145614)
-keep_temp <- subset(ChangeIntentFinal, WaRecId %in% c(all_trust_temp, all_seasonal))
+keep_temp <- subset(ChangeIntentFinal, WaRecId %in% c(all_trust_temp, all_seasonal)) ## temporary changes that we want to keep
 ChangeIntentFinal <- ChangeIntentFinal[grep("Seasonal|ShrtTerm|Temp", ChangeIntentFinal$Event, invert=T),]
 ChangeIntentFinal <- rbind(ChangeIntentFinal, keep_temp) # We keep rights that have a seasonal or temporary change with a subsequent permanent change
+
+## Use adj_childQ and adj_parent data frames created above to modify the diminishment quantities and parent quantities, respectively.
 row_num <- which(ChangeIntentFinal$WaRecId %in% adj_childQ$docid)
 ChangeIntentFinal$ChildQ[row_num] <- adj_childQ$newQ[match(ChangeIntentFinal$WaRecId[row_num], adj_childQ$docid)]
 row_num <- which(ChangeIntentFinal$Parent %in% adj_parent$docid)
@@ -1005,10 +916,13 @@ ChangeIntentFinal$Parent_Qa[row_num] <- adj_parent$newQ[match(ChangeIntentFinal$
 row_num <- which(ChangeIntentFinal$Oldest %in% adj_parent$docid)
 ChangeIntentFinal$Oldest_Qa[row_num] <- adj_parent$newQ[match(ChangeIntentFinal$Oldest[row_num], adj_parent$docid)]
 ChangeIntentFinal <- ChangeIntentFinal[-which(ChangeIntentFinal$WaRecId %in% delete),]
+
 ChangeIntentFinal$Purpose <- water_rights$PurposeOfUse[match(ChangeIntentFinal$WaRecId, water_rights$WRDocID)]
 ChangeIntentFinal$WRIA_ID <- water_rights$WRIA_ID[match(ChangeIntentFinal$WaRecId, water_rights$WRDocID)]
 ChangeIntentFinal$Parent_IA <- water_rights$IrrAreaTotal[match(ChangeIntentFinal$Parent, water_rights$WRDocID)]
 ChangeIntentFinal <- subset(ChangeIntentFinal, !WaRecId %in% c(shorterm_lease, conservation_exclude, donations)) # remove short-term leases, donations, and certian IEGP conservation rights
+
+## Fill annual quantities of the 1st-gen parents
 
 docs3 <- c(2084016, 2212424, 2134368, 2039500, 2084253, 2038639, 2135988, 4170276, 2078794, 2069330,
            2055499, 2078112, 2078119, 2078718, 2079087, 2079306, 2079797, 2079826, 2079849,
@@ -1024,50 +938,42 @@ Qa3 <- c(200, 100, 260, 160, 285, 400, 356, 280, 37959, 16,
          181250, 274, 1020, 212, 285, 2650, 140, 756, 1036, 1420,
          205, 75, 360)
 
-
-docid <- c(2086762)
-Qi <- c(1)
-
-
-
 fill_oldest <- data.frame(docid=docs3, Qa=Qa3)
 row_num <- which(ChangeIntentFinal$Oldest %in% fill_oldest$docid)
 ChangeIntentFinal$Oldest_Qa[row_num] <- fill_oldest$Qa[match(ChangeIntentFinal$Oldest[row_num], fill_oldest$docid)]
-fill_Yakima <- read.csv("fill_Yakima.csv") # fill the Parent court claim quantities
+fill_Yakima <- read.csv("input_data_files/fill_Yakima.csv") # fill the Parent court claim quantities
 row_num <- which(ChangeIntentFinal$WaRecId %in% fill_Yakima$docid)
 ChangeIntentFinal$Parent_Qa[row_num] <- fill_Yakima$Qa[match(ChangeIntentFinal$Parent[row_num], fill_Yakima$docid)]
 ChangeIntentFinal$Oldest_Qa[row_num] <- fill_Yakima$Qa[match(ChangeIntentFinal$Oldest[row_num], fill_Yakima$docid)]
 ChangeIntentFinal$Oldest_Qa <- ifelse(is.na(ChangeIntentFinal$Oldest_Qa) & ChangeIntentFinal$Oldest == ChangeIntentFinal$Parent, ChangeIntentFinal$Parent_Qa, ChangeIntentFinal$Oldest_Qa)
 
-ChangeIntentFinal$ParentPhase <- water_rights$Phase[match(ChangeIntentFinal$Parent, water_rights$WRDocID)]
-ChangeIntentFinal$ParentPurpose <- water_rights$PurposeOfUse[match(ChangeIntentFinal$Parent, water_rights$WRDocID)]
-missing_parent_Qa <- unique(subset(ChangeIntentFinal, is.na(Parent_Qa))[,c("Parent", "Parent_Qi", "Parent_IA", "ParentPhase", "ParentPurpose", "WRIA_ID")])
-#write.csv(missing_parent_Qa, "missing_parent_Qa.csv", row.names=F)
+ChangeIntentFinal$ParentPhase <- water_rights$Phase[match(ChangeIntentFinal$Parent, water_rights$WRDocID)] ## phase of the parent
+ChangeIntentFinal$ParentPurpose <- water_rights$PurposeOfUse[match(ChangeIntentFinal$Parent, water_rights$WRDocID)] ## purose of use of the parent
 
-
-fill_parent <- read.csv("fill_parent_Qa.csv") ## based on water duties
+## fill missing parent water quantities based on average water duties
+fill_parent <- read.csv("input_data_files/fill_parent_Qa.csv") 
 row_num <- which(ChangeIntentFinal$Parent %in% fill_parent$Parent)
 ChangeIntentFinal$Parent_Qa[row_num] <- fill_parent$Parent_Qa[match(ChangeIntentFinal$Parent[row_num], fill_parent$Parent)]
 row_num <- which(ChangeIntentFinal$Oldest %in% fill_parent$Parent)
 ChangeIntentFinal$Oldest_Qa[row_num] <- fill_parent$Parent_Qa[match(ChangeIntentFinal$Oldest[row_num], fill_parent$Parent)]
 
-
-
-person <- read.csv("C:/Users/matthew.yourek/Documents/Dissertation/water_rights_tables/new_WRTS_tables/PersonOrOrganization.csv")
-ChangeIntentFinal$Person <- person$PersonOrOrganization[match(ChangeIntentFinal$WaRecId, person$WaRecId)] 
-ChangeIntentFinal$Parent_Person <- person$PersonOrOrganization[match(ChangeIntentFinal$Parent, person$WaRecId)]
-person_class <- read.csv("public_private3.csv")
+person <- read.csv("input_data_files/PersonOrOrganization.csv")
+ChangeIntentFinal$Person <- person$PersonOrOrganization[match(ChangeIntentFinal$WaRecId, person$WaRecId)] # name of child water right holder
+ChangeIntentFinal$Parent_Person <- person$PersonOrOrganization[match(ChangeIntentFinal$Parent, person$WaRecId)] # name of parent water right holder
+person_class <- read.csv("input_data_files/public_private3.csv") ## type of water right holder
 ChangeIntentFinal$PersonClass <- person_class$Class[match(ChangeIntentFinal$Person, person_class$Person)]
 ChangeIntentFinal$Parent_PersonClass <- person_class$Class[match(ChangeIntentFinal$Parent_Person, person_class$Person)]
 
-
+## a few corrections to the water right holder classifications
 new_owner_class <- data.frame(docid=c(4145294, 4180725, 6799768, 6799769, 6799771, 6799772, 6799773, 6801151, 6801156), 
                               class=c("Irrigation Company", "Irrigation Company", "Irrigation District", "Irrigation District", "Irrigation District", "Irrigation District", "Irrigation District", "Irrigation District", "Department/Agency"))
 row_num <- which(ChangeIntentFinal$WaRecId %in% unique(new_owner_class$docid))
 ChangeIntentFinal$Parent_PersonClass[row_num] <- new_owner_class$class[match(ChangeIntentFinal$WaRecId[row_num], new_owner_class$docid)]
 
-ChangeIntentFinal$Source <- water_rights$RCWClass[match(ChangeIntentFinal$WaRecId, water_rights$WRDocID)]
+ChangeIntentFinal$Source <- water_rights$RCWClass[match(ChangeIntentFinal$WaRecId, water_rights$WRDocID)] ## groundwater or surface water?
 ChangeIntentFinal$ParentSource <- water_rights$RCWClass[match(ChangeIntentFinal$Parent, water_rights$WRDocID)]
+
+### Adjustments to purpose of use designation
 
 doc_id <- c(2141873, 2142048, 2143253, 2216913, 2218866, 2218956, 2219631, 2219652, 2219982, 2220052, 
             2220376, 2221081, 2281850, 4189096, 4673895, 5357353, 6799551, 2078033, 2078959, 2087367,
@@ -1089,23 +995,14 @@ purpose <- c("DM", "MU", "DM", "IR", "DM", "IR", "DM", "IR", "IR|DG", "IR",
              "DM", "DM", "DM", "DM", "DM", "DM", "DM", "DM", "DM", "IR",
              "IR", "DM", "DM", "DM", "DM", "DM", "DM", "DM", "DM", "MU|IR",
              "MU|IR")
-person <- c("Company", "Municipality", "Individual", "Individual", "Individual", "Individual", "Individual", "Individual", "Individual", "Individual", 
-            "Individual", "Company", "Individual", "Individual", "Individual", "Company", "Individual", "Company", "Company", "Company",
-            "Company", "Company", "Company", "Company", "Company", "Irrigation District", "Irrigation District", "Company", "Individual", "Company",
-            "Company", "Company", "Company", "Company", "Company", "Company", "Company", "Company", "Company", "Company",
-            "Company", "Company", "Company", "Company", "Company", "Company", "Company", "Individual", "Individual", "Individual",
-            "Company", "Company", "Company", "Company", "Company", "Company", "Company", "Company", "Company", "Irrigation District",
-            "Irrigation District", "Irrigation District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District",
-            "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District",
-            "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District", "Fire/School/Water District",
-            "Fire/School/Water District")
 
-person_purpose.df <- data.frame(docid=doc_id, purpose=purpose, person=person)
+person_purpose.df <- data.frame(docid=doc_id, purpose=purpose)
 
 row_nums <- which(ChangeIntentFinal$Parent %in% person_purpose.df$docid)
 ChangeIntentFinal$ParentPurpose[row_nums] <- person_purpose.df$purpose[match(ChangeIntentFinal$Parent[row_nums], person_purpose.df$docid)]
-#ChangeIntentFinal$Parent_PersonClass[row_nums] <- person_purpose.df$person[match(ChangeIntentFinal$Parent[row_nums], person_purpose.df$docid)]
-new_ChangeIntent <- read.csv("ChangeIntentType2.csv")
+
+## Adjust change intent type
+new_ChangeIntent <- read.csv("input_data_files/ChangeIntentType2.csv")
 ChangeIntentFinal <- unique(merge(new_ChangeIntent[,1:2], ChangeIntentFinal[,-2], all=T, by="WaRecId"))
 del_rows <- which(is.na(ChangeIntentFinal$PrimaryNumber))
 if (length(del_rows) > 0) {
@@ -1131,20 +1028,7 @@ ChangeIntentFinal$ChildQ[ChangeIntentFinal$WaRecId %in% docs] <- adj_ChildQ$dimQ
 ChangeIntentFinal$ChildQ[ChangeIntentFinal$DiminishingChange == FALSE] <- 0
 ChangeIntentFinal <- subset(ChangeIntentFinal, !is.na(WaRecChangeIntentTypeCode))
 
-
-old_portion_inactive <- c(4268314, 4267184, 4268951, 4272391, 4266036, 4193372, 4197308, 4193757, 4204948,
-                          4194421, 4194431, 4265971, 4266036, 4267184, 4268314, 4268951, 4272287, 4204860, 4203514, 4207912, 4208118)   #change on portion stated, but parent is inactive
-old_portion_active <- c(4268469, 4199415, 4192421, 4193304, 4193846, 4199352, 4588900, 4193836, 4197377, 4250876, 4251692,
-                        4251148, 2145517, 2145520, 4241538, 2145515, 2145508, 4224482, 4241558, 2145526, 	2145348, 4245957, 4252348,
-                        4180478, 2145551, 2145567, 4250688, 2145297, 4241278, 2087066) #change on portion stated, parent active
-
-old_portion_inactive2 <- c(4265912, 4265971) # change on portion not stated, parent is inactive
-
-
-old_active <- c(4242099, 4251097, 4251181, 4251986, 4251998, 2145322, 2145594, 4180478, 4180489, 4242099, 
-                4245957, 4245970, 4251097, 4251567, 4251579, 4251602, 4251986, 4251998) # child less than parent, parent active, no statement that it is a portion. These seem to be changes on court claims
-
-nonconsumptive_rights <- read.csv("nc_rights.csv")
+nonconsumptive_rights <- read.csv("input_data_files/nc_rights.csv") ## water rights for non-consumptive uses
 nc_parents <- unique(subset(ChangeIntentFinal, WaRecId %in% nonconsumptive_rights$WaRecId)$Parent)
 row_num <- which(ChangeIntentFinal$Parent %in% nc_parents)
 ChangeIntentFinal$ChildQ[row_num] <- nonconsumptive_rights$ChildQi[match(ChangeIntentFinal$WaRecId[row_num], nonconsumptive_rights$WaRecId)]
@@ -1154,18 +1038,19 @@ ChangeIntentFinal$nonconsumptive[row_num] <- TRUE
 
 not_enough_info <- c(2143474, 2145249, 4225594, 2145422, 2032556, 4194725, 4485290, 2144742, 2144743, 4459406, 
                      2129549, 4190105, 2145252, 4165100, 4165114, 4226216, 4227036, 4227054, 4240820, 4317022,
-                     4316933, 4316966, 4316998, 2032992, 4520862, 2086971)
+                     4316933, 4316966, 4316998, 2032992, 4520862, 2086971) ## Records with not enough information to determine forfeiture
 extra_temporary <- c(6802591, 6802590, 6800401, 6800332, 6800331, 2075340, 2075386, 2084865, 2085235, 2085207,
-                     2085208, 2085210)
+                     2085208, 2085210) ## additional temporary water rights that should be deleted
 delete_rows <- which(ChangeIntentFinal$WaRecId %in% c(not_enough_info, extra_temporary))
 ChangeIntentFinal <- ChangeIntentFinal[-delete_rows,]
 
+
+## Forfeiture is of the instantaneous quantity only (no forfeiture annual quantity)
 Qi_not_Qa <- c(2272126, 2271919, 2224462, 4394899, 4394930, 2147773, 2154083, 4175336, 2088839,
                2088840, 2088847, 4153104, 4669809, 4506418, 5603592, 5603620, 6799664, 6166220,
                2086766, 2223408, 2224436, 2272120, 6506656, 2285751, 4273501, 2145533, 4668956, 
                2085028, 2085115, 4163905, 4695881, 2087490, 2129450, 2086982, 4157949, 5603677,
                5603723)
-
 
 docid <- c(2283549, 2087490)
 Qi <- c(11.14, 300)
@@ -1173,14 +1058,14 @@ replace_Qi <- data.frame(docid=docid, Qi=Qi)
 row_num <- which(ChangeIntentFinal$Parent %in% docid)
 ChangeIntentFinal$Parent_Qi[row_num] <- replace_Qi$Qi[match(ChangeIntentFinal$Parent[row_num], replace_Qi$docid)]
 
+## water rights with forfeiture in the superseding document phase
 dd1 <- c(4186851, 4186869, 4163642, 2095239, 2147116, 2222819, 2223197, 2223237, 2222761, 
          2221174, 4426749, 2285664, 2223946, 4677568, 2129466, 4197535, 2085115, 2085146, 2223408,
          4197535, 6799017, 2145002, 2089248, 2129590, 6801025, 2129305, 2129450, 4259734, 2145599, 
          2145598, 2145602, 2145850, 2145852, 2087490, 2147276, 2285842, 4148190, 2145426) # lack of diligence following change ROE
 ChangeIntentFinal$DiminishingChange[which(ChangeIntentFinal$WaRecId %in% c(Qi_not_Qa, dd1))] <- TRUE
 
-
-diminish_Qi <- read.csv("Qi_not_Qa.csv")
+diminish_Qi <- read.csv("input_data_files/Qi_not_Qa.csv")
 dimQi_parents <- unique(subset(ChangeIntentFinal, WaRecId %in% diminish_Qi$WaRecId)$Parent)
 row_num <- which(ChangeIntentFinal$Parent %in% dimQi_parents)
 ChangeIntentFinal$Parent_Qa2 <- ChangeIntentFinal$Parent_Qa
@@ -1189,155 +1074,17 @@ ChangeIntentFinal$Parent_Qa[row_num] <- diminish_Qi$Parent_Qi[match(ChangeIntent
 ChangeIntentFinal$QiOnly <- FALSE
 ChangeIntentFinal$QiOnly[row_num] <- TRUE
 ChangeIntentFinal$ChildQ[is.na(ChangeIntentFinal$ChildQ)] <- 0
-#ChangeIntentFinal$nonconsumptive <- ifelse(ChangeIntentFinal$QiOnly == TRUE | ChangeIntentFinal$nonconsumptive == TRUE, TRUE, FALSE)
-#row_num <- which()
+
 delete <- c(6800967, 4228653, 4228060, 2087067, 4584763, 4184081)
 ChangeIntentFinal <- ChangeIntentFinal[-which(ChangeIntentFinal$WaRecId %in% delete),]
-write.csv(ChangeIntentFinal, "WRChanges.csv", row.names=F)
-PreAdj_Yakima <- grep("Record inactivated as a result of the issuance of the Final Decree on 5/9/2019 in the Yakima River Basin Adjudication", water_rights$Comment)
-water_rights$PreAdj_Yakima <- FALSE
-water_rights$PostAdj_Yakima <- FALSE
-water_rights$PreAdj_Yakima[PreAdj_Yakima] <- TRUE
-water_rights$PostAdj_Yakima[grep("Yakima Adjud-Finalized 2019", water_rights$AssignmentGroup)] <- TRUE
-Yakima <- subset(water_rights, WRIA_NM %in% c("Lower Yakima", "Upper Yakima", "Naches") & RCWClass == "surfaceWater" & DocType %in% c("ChangeROE", "Certificate", "Claim", "Permit", "AdjudicatedCertificate", "CertificateOfChange", "SupersedingPermit", "SupersedingCertificate"))
-write.csv(Yakima, "Yakima_SurfaceWater.csv", row.names=F)
+write.csv(ChangeIntentFinal, "cleaned_data/WRChanges.csv", row.names=F)
 
-water_rights$DocDate <- sapply(1:nrow(water_rights), function(x)
+water_rights$DocDate <- sapply(1:nrow(water_rights), function(x) ## Read the date of issuance for water right documents
   DocDate(input_df=water_rights, event_colname="EventType", date_colname="EventDoneDate", x))
 water_rights$DocDate <- as.Date(water_rights$DocDate)
 water_rights$DocDate2 <- sapply(1:nrow(water_rights), function(x) DocDate2(input_df=water_rights, event_colname="EventType", date_colname="EventDoneDate", x))
-print("Done DocDate")
-#WR <- read.csv("Water_rights_all_updated_adj2.csv")
-#WR$EventType <- water_rights$EventType[match(WR$WRDocID, water_rights$WRDocID)]
-#WR$EventDoneDate <- water_rights$EventDoneDate[match(WR$WRDocID, water_rights$WRDocID)]
-#WR$DocDate <- water_rights$DocDate[match(WR$WRDocID, water_rights$WRDocID)]
-#WR$Pre1967 <- ifelse(as.Date(WR$DocDate) < as.Date("1967-07-01"), TRUE, FALSE)
-#write.csv(WR, "Water_rights_all_updated_adj2.csv", row.names=F)
 
 
-
-
-#dim_list <- unlist(lapply(genealogy.ls, function(x) x$diminishment$IsDiminished))
-#dim1 <- as.numeric(na.omit(names(dim_list[dim_list == TRUE])))
-#dim2 <- na.omit(unique(relinquishment$Parent[relinquishment$IsDiminished == 1]))
-
-#nodim1 <- as.numeric(na.omit(names(dim_list[dim_list == FALSE])))
-#nodim2 <- na.omit(unique(relinquishment$Parent[relinquishment$IsDiminished == 0]))
-
-#dim_agree <- dim1[which(dim1 %in% relinquishment$Parent & dim1 %in% dim2)]
-#dim_disagree <- dim1[which(dim1 %in% relinquishment$Parent & !(dim1 %in% dim2))]
-
-#nodim_agree <- nodim1[which(nodim1 %in% relinquishment$Parent & nodim1 %in% nodim2)]
-#nodim_disagree <- nodim1[which(nodim1 %in% relinquishment$Parent & !(nodim1 %in% nodim2))]
-
-
-#length(dim_agree) / (length(dim_agree) + length(dim_disagree))
-#length(nodim_agree) / (length(nodim_agree) + length(nodim_disagree))
-
-
-saveRDS(genealogy.ls, "genealogy_list.rds")
-
-
-
-
-#all_inactive <- unlist(lapply(genealogy.ls, function(x) x$diminishment$AllInactive==TRUE))
-#all_inactive <- names(all_inactive[all_inactive==TRUE])
-#a <- subset(ChangeIntentFinal, Oldest %in% all_inactive)[c("WaRecId", "Parent", "Oldest", "Qa_raw", "Parent_Qa", "IsDiminished", "DiminishingChange")]
-#subset(ChangeIntentFinal, Oldest %in% all_inactive)[c("WaRecId", "IsDiminished", "DiminishingChange2", "WRIA")]
-
-relinqd_cert <- water_rights$WRDocID[grepl("Relinqd", water_rights$EventType)] # all certificates of relinquishment
-relinqd_cert <- relinqd_cert[-which(relinqd_cert==6803099)]
-
-change <- relinqd_cert[relinqd_cert %in% unique(c(parent_child$Parent, parent_child$Child))]
-not_change <- relinqd_cert[!relinqd_cert %in% unique(c(parent_child$Parent, parent_child$Child))]
-other_not_change1 <- ChangeIntentFinal$WaRecId[which((ChangeIntentFinal$WaRecId %in% relinqd_cert | ChangeIntentFinal$Parent %in% relinqd_cert) & ChangeIntentFinal$DiminishingChange == FALSE)]
-other_not_change2 <- ChangeIntentFinal$Parent[which((ChangeIntentFinal$WaRecId %in% relinqd_cert | ChangeIntentFinal$Parent %in% relinqd_cert) & ChangeIntentFinal$DiminishingChange == FALSE)]
-other_not_change <- unique(c(other_not_change1, other_not_change2))
-other_change1 <- ChangeIntentFinal$WaRecId[which((ChangeIntentFinal$WaRecId %in% relinqd_cert | ChangeIntentFinal$Parent %in% relinqd_cert) & ChangeIntentFinal$DiminishingChange == TRUE)]
-other_change2 <- ChangeIntentFinal$Parent[which((ChangeIntentFinal$WaRecId %in% relinqd_cert | ChangeIntentFinal$Parent %in% relinqd_cert) & ChangeIntentFinal$DiminishingChange == TRUE)]
-other_change <- unique(c(other_change1, other_change2))
-other_not_change <- other_not_change[!(other_not_change %in% other_change)]
-
-not_change <- unique(c(not_change, other_not_change[other_not_change %in% relinqd_cert]))
-
-relinqd_date <- sapply(not_change, function(x) unlist(strsplit(water_rights$EventDoneDate[water_rights$WRDocID == x], split="\\|"))[grep("Relinqd", unlist(strsplit(water_rights$EventType[water_rights$WRDocID == x], split="\\|")))[1]])
-relinqd.df <- data.frame(docid=not_change, date=relinqd_date)                                                 
-relinqd.df$Event <- water_rights$EventType[match(relinqd.df$docid, water_rights$WRDocID)]
-relinqd.df$Qa <- water_rights$QaTotal[match(relinqd.df$docid, water_rights$WRDocID)]
-relinqd.df$Qi <- water_rights$QiTotal[match(relinqd.df$docid, water_rights$WRDocID)]
-relinqd.df$IA <- water_rights$IrrAreaTotal[match(relinqd.df$docid, water_rights$WRDocID)]
-relinqd.df$WRIA <- water_rights$WRIA_ID[match(relinqd.df$docid, water_rights$WRDocID)]
-relinqd.df$Purpose <- water_rights$Purpose[match(relinqd.df$docid, water_rights$WRDocID)]
-relinqd.df$Phase <- water_rights$Phase[match(relinqd.df$docid, water_rights$WRDocID)]
-
-### WRTS summary #########
-
-WR <- water_rights[,c("WRDocID","Status", "Phase")]
-WR$Status[which(WR$Status != "Inactive")] <- "Active"
-claim_type <- read.csv("C:/Users/matthew.yourek/Documents/Dissertation/water_rights_tables/new_WRTS_tables/ClaimTypes.csv")
-WR$ClaimType <- claim_type$WaRecClaimTypeCode[match(WR$WRDocID, claim_type$WaRecId)]
-WR$Phase2 <- ifelse(is.na(WR$ClaimType), WR$Phase, paste(WR$Phase, WR$ClaimType, sep="_"))
-
-a <- data.frame(t(table(WR$Phase2, WR$Status)))
-b <- data.frame(t(unstack(a, Freq~Var2)))
-names(b) <- c("Active", "Inactive")
-#write.csv(b, "Phase2.csv")
-
-
-person <- read.csv("C:/Users/matthew.yourek/Documents/Dissertation/water_rights_tables/new_WRTS_tables/PersonOrOrganization.csv")
-
-touchet_ditch <- c(2088999, 2089000, 2145215, 2145221, 2145224, 2145388, 2145542, 2145543, 2145640, 4258573)
-n1 <- unique(subset(ChangeIntentFinal, WaRecId %in% touchet_ditch)[,c("WaRecId", "Parent", "ChildQ", "Parent_Qa")])
-n1$RelRate <- -1 * n1$ChildQ / n1$Parent_Qa
-
-Enfield <- c(5241083, 5404176, 5404203, 5566424, 5600736, 5600787, 5600885, 5600909, 5600934, 5600979, 6462131, 6798864, 5600808, 5601011)
-n2 <- unique(subset(ChangeIntentFinal, WaRecId %in% Enfield)[,c("WaRecId", "Parent", "ChildQ", "Parent_Qa")])
-n2$Primary <- ChangeIntentFinal$PrimaryNumber[match(n2$WaRecId, ChangeIntentFinal$WaRecId)]
-n2 <- cbind(aggregate(n2$ChildQ, list(n2$Parent), sum), aggregate(n2$Parent_Qa, list(n2$Parent), mean)[,2])
-names(n2) <- c("Parent", "ChildQ", "Parent_Qa")
-n2 <- subset(n2, Parent %in% c(2276295, 2279851, 2274944, 2279888, 2282080, 2277406, 2280096, 2264933, 2281308, 2271971) )
-n2$RelRate <- ifelse(n2$ChildQ < 0, -1 * n2$ChildQ / n2$Parent_Qa, NA)
-
-Methow <- unique(subset(ChangeIntentFinal, WRIA == "Methow" & DiminishingChange==TRUE)[,c("WaRecId", "Parent", "ChildQ", "PrimaryNumber")])
-Methow$person <- person$PersonOrOrganization[match(Methow$WaRecId, person$WaRecId)]
-
-Lowden <- c(2136762, 2134784, 2134502, 2134015, 2134498, 2134500, 2135848, 2135650, 2136107, 2136110,
-            2134515, 2136760, 2134785, 2134783, 2134786, 2134499, 2136759, 2134787, 4845627, 2134496,
-            2134013, 2134410, 2135239, 2134298, 2134497, 2143321, 2134281, 2134493, 2134501, 2134514)
-n2 = subset(allQuant_Parent, Parent %in% Lowden)
-n2$QiOnly <- ChangeIntentFinal$QiOnly[match(n2$Parent, ChangeIntentFinal$Parent)]
-n2$RelRate <- n2$Relinq_Qa / n2$Parent_Qa
-sum(n2$Relinq_Qa>0)
-n2$Relinq_Qa[n2$QiOnly == TRUE] <- 0
-sum(n2$Relinq_Qa) / sum(n2$Parent_Qa2)
-
-other_changes <- read.table("extra_change_WaRecID.csv")[,1]
-extra_changes <- c(6800867, 4207125, 6800870, 2087732, 4541298, 2075129, 6800804, 2032962, 2075376, 2084501, 
-                   2084530, 2084539, 2084773, 2085110, 2085111, 2085112, 2085239,
-                   2085249, 2085256, 2087135, 2087168, 2087171, 2087183, 2087195, 2087219, 2087341, 2087456,
-                   2087531, 2087659, 2087697, 2145433, 4147092, 4147258, 4147269, 4164206, 4206123, 4226216,
-                   4227036, 4227054, 4228060, 4236779, 4237360, 4246013, 4249631, 4270542, 4272202, 4442887,
-                   4445180, 4542625, 4622918, 4883444, 5002361, 5079600, 5403775,
-                   6045285, 6748163, 6797069, 6799756, 6800718, 6800808)
-#other_changes <- c(2084808, 2085011, 2086731, 2086974, 2086975, 2086976, 2086982, 2086980, 2086983, 2086986,
-#                   2086987, 2086988, 2086989, 2086990, 2086992, 2086995, 2086996, 2086997, 2086998, 2087087,
-#                   2087088, 2087089, 2087090, 2087091, 2087092, 2087093, 2087097, 2087098, 2087099, 2087100,
-#                   2087101, 2087102, 2087103, 2087106, 2087107, 2087108, 2087109, 2087110, 2087111, 2087115,
-#                   2087116, 2087117, 2087118, 2087119, 2087122, 2087123, 2087186)
-other_changes <- c(other_changes, extra_changes)
-delete <- c(6800967, 4228653, 4228060, 2087067, 4584763, 4184081)
-other_changes <- other_changes[-which(other_changes %in% delete)]
-
-check <- unique(ChangeIntentFinal[which(ChangeIntentFinal$WaRecId %in% other_changes),c("WaRecId", "PrimaryNumber", "Parent", "Oldest", "Qa", "Qi", "Parent_Qa", "Parent_Qi", "Oldest_Qa", "ChildQ", "DiminishingChange", "ChangeDate")])
-unattached_changes <- c(2075140, 2075136)
-
-final_check_add <- c(2086978, 2086984, 2144999, 2145007, 2145008, 2145019, 2145109, 2145132, 2145145, 6125357, 
-                     6500607, 6624974, 6801156, 6802474, 4541298, 2145066, 2145614, 4156809, 4169432, 4170192,
-                     4182552, 4189540, 4190325, 4190352, 4199524, 4228109, 4257303, 6263958, 6463203)
-
-
-
-add_from_cert <- c(4679141, 5001124, 5319523)
 
 
 
