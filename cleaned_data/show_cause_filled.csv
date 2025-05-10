@@ -764,7 +764,7 @@ docid,WRIA_ID,Phase,Purpose,date,Qa_WRTS,Qi_WRTS,IA_WRTS,reltype_WRTS,water_duty
 4439811,40,Certificate,MU,5/14/1985,921,1800,NA,full,3.870967742,921,0,921,,1800,0,,,full relinquishment,no
 2145442,42,CertificateOfChange,IR,1/4/2002,1580,1500,480,full,#N/A,1580,0,1580,,1500,0,480,0,full relinquishment,no
 2083819,49,Certificate,IR,3/9/1990,142,380,38,full,4,142,0,142,,380,,38,,full relinquishment,no
-2214684,21,Certificate,DS,12/9/1981,NA,0.01,NA,full,#N/A,0.5,0,,,0.01,0,,,full relinquishment,no
+4192986,21,Certificate,DS,12/9/1981,NA,0.01,NA,full,#N/A,0.5,0,,,0.01,0,,,full relinquishment,no
 2213850,16,Certificate,DM|IR,1/1/1901,NA,0.05,3,full,2,2,0,,,0.05,0,3,0,full relinquishment,no
 2220376,13,Certificate,MU,1/1/1901,180,300,NA,full,2,180,0,180,0,0.666666667,0,,,full relinquishment,no
 2219827,13,Certificate,MU,1/1/1901,90,100,NA,full,2,90,0,90,0,0.222222222,0,,,full relinquishment,no
@@ -990,3 +990,7 @@ docid,WRIA_ID,Phase,Purpose,date,Qa_WRTS,Qi_WRTS,IA_WRTS,reltype_WRTS,water_duty
 2142180,41,Certificate,IR,1/11/2002,260,1.44,65,full,,260,0,,,1.44,0,,,full relinquishment,no
 2082814,30,Certificate,IR,12/8/1982,300,1.33,120,partial,,300,245,,,1.33,1.33,,,partial relinquishment,no
 2087002,48,CertificateOfChange,IR|ST|DS,5/5/2001,NA,0.75,30,partial,,120,120,,,0.75,0.75,,,partial relinquishment,no
+2142703,41,Certificate,DS,4/30/2019,148.5,1.111111111,NA,partial,,148.5,100,,,,,,,partial relinquishment,no
+2083455,37,Certificate,IR,8/3/1990,,,,partial,,480,8.3,,,,,,,partial relinquishment,no
+2136670,32,Certificate,IR,1/30/2007,,,,partial,,800,708.8,,,,,,,partial relinquishment,no
+2219859,13,Certificate,DM,1/26/2018,,,,full,,22.4,0,,,,,,,full relinquishment,no
